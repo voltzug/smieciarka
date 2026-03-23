@@ -1,7 +1,7 @@
 # smieciarka
 SN-based second-hand electronics trading platform focused on **traceable item history** and **database-level integrity**.
 
-> [!INFO]
+> [!NOTE]
 > uses _PostgreSQL_ 16 with `pgcrypto` extension
 
 Shields: [![PostgreSQL 16][pg-shield]][pg]  [![BSD 3-Clause License][bsd-shield]][bsd]
