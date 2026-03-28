@@ -1,6 +1,10 @@
+.env*
+!.env.example
+
 gen/
 *.gen.sql
 
 *.tmp
+*.log
 
 *.zip

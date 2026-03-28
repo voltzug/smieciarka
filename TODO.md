@@ -1,15 +1,18 @@
 - [x] script
 - [x] erd
+- [x] seed
+- [x] test web API
 
 
 ## users
 - [ ] ALL
-  - [ ] prevent calling private functions (start with `_`)
   - [ ] prevent direct users/items/offers update
   - [ ] prevent direct item_ledger insert/update/delete
-- [ ] admin
-- [ ] moder
-- [ ] app
+- [ ] elephant (safe internal without login for functions)
+- [x] moder
+- [x] app
+  - [ ] prevent calling private functions (start with `_`)
+- [x] app_test
 
 
 ## core
@@ -34,7 +37,7 @@
     - [x] `change_item_details` (calls `audit.append_item_event` MOD_ITEM_DETAILS for title, value)
   - [x] types
     - [x] e_item_status: CREATED (default), VERIFIED, BURNT
-    - [x] t_created_updated: 2x timestampz
+    - [x] t_created_updated: 2x timestamptz
 
 
 ## data
@@ -45,23 +48,23 @@
     - [x] `_change_user_email`
     - [x] `change_user_details` (without email)
 
-- [ ] offers
+- [x] offers
   - [x] constraints
     - [x] 1 offer per 1 user-item
     - [x] price > 0
-  - [ ] functions
-    - [ ] `register_item_offer` (checks for existing with CLOSED status and update OR insert new, calls `audit.append_item_event` REGISTER_OFFER)
-    - [ ] `cancel_item_offer` (allow cancelling only ACTIVE/RESERVED offers, cascade cancel related bids, calls `audit.append_item_event` CANCEL_OFFER)
+  - [x] functions
+    - [x] `register_item_offer` (checks for existing with CLOSED status and update OR insert new, calls `audit.append_item_event` REGISTER_OFFER)
+    - [x] `cancel_item_offer` (allow cancelling only ACTIVE/RESERVED offers, cascade cancel related bids, calls `audit.append_item_event` CANCEL_OFFER)
   - [x] types
     - [x] e_offer_status: ACTIVE (default), RESERVED, PENDING_TRANSACTION, CLOSED
 
-- [ ] bids
+- [x] bids
   - [x] constraints
     - [x] 1 bid per 1 user-offer (bidder only can update value for existing bid)
     - [x] cascade bids on offer deletion
-  - [ ] functions
-    - [ ] `place_item_bid` (allow placing only on ACTIVE offers, calls `audit.append_item_event` PLACE_BID)
-    - [ ] `cancel_item_bid` (allow cancelling only PENDING bid AND on ACTIVE/RESERVED offers, calls `audit.append_item_event` CANCEL_BID)
+  - [x] functions
+    - [x] `place_item_bid` (allow placing only on ACTIVE offers, calls `audit.append_item_event` PLACE_BID)
+    - [x] `cancel_item_bid` (allow cancelling only PENDING bid AND on ACTIVE/RESERVED offers, calls `audit.append_item_event` CANCEL_BID)
   - [x] triggers
     - [x] `trg_validate_bid_value_ge_offer_price` (value >= offer.price)
   - [x] types
@@ -94,6 +97,6 @@
 - [ ] cleanup
   - [ ] offers (+bids+conversations)
     - [ ] `mc_drop_offers` (cascade delete offers where .status=='CLOSED' AND .stamp.updated_at is older that certain date)
-- [ ] integrity
+- [x] integrity
   - [x] item_ledger
     - [x] `mi_verify_item_chain` -> boolean

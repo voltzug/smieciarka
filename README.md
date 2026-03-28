@@ -96,9 +96,10 @@ The database is expected to enforce:
 ---
 
 ## Map
-- High-level idea and functional intent: `README.md` (this file)
 - [ERD specification and schema implementation details](docs/README.md)
-- [SQL source folders](db/)
+- [SQL source](db/) folders
+- [CI Containers](ci/)
+- [Simple web API](test/) for testing purposes
 
 
 ## License

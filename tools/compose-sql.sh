@@ -196,6 +196,9 @@ for stage in "${STAGES[@]}"; do
     done
 done
 
+# 4) users/roles
+append_file_with_header "$CREATE_FILE" "GLOBAL :: USERS.$EXTENSION" "$target_dir/USERS.$EXTENSION"
+
 # ---------------------------
 # DROP.sql (reversed order)
 # ---------------------------

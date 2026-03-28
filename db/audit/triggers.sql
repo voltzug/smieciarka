@@ -1,9 +1,11 @@
 SET search_path TO audit;
 
 -- block UPDATE and DELETE entirely once a ledger row is written it is immutable.
-CREATE OR REPLACE FUNCTION protect_item_ledger_no_update_delete()
+CREATE OR REPLACE FUNCTION audit.protect_item_ledger_no_update_delete()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = audit, core, pg_temp
 AS $$
 BEGIN
     RAISE EXCEPTION 'item_ledger is append-only: % operations are forbidden', TG_OP;
@@ -12,19 +14,21 @@ END;
 $$;
 
 CREATE TRIGGER trg_protect_item_ledger_update
-    BEFORE UPDATE ON item_ledger
+    BEFORE UPDATE ON audit.item_ledger
     FOR EACH ROW
-    EXECUTE FUNCTION protect_item_ledger_no_update_delete();
+    EXECUTE FUNCTION audit.protect_item_ledger_no_update_delete();
 CREATE TRIGGER trg_protect_item_ledger_delete
-    BEFORE DELETE ON item_ledger
+    BEFORE DELETE ON audit.item_ledger
     FOR EACH ROW
-    EXECUTE FUNCTION protect_item_ledger_no_update_delete();
+    EXECUTE FUNCTION audit.protect_item_ledger_no_update_delete();
 
 
 -- Validate every INSERT targeting ledger
-CREATE OR REPLACE FUNCTION protect_item_ledger_insert()
+CREATE OR REPLACE FUNCTION audit.protect_item_ledger_insert()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = audit, core, pg_temp
 AS $$
 DECLARE
     v_expected  bytea;
@@ -43,7 +47,7 @@ BEGIN
             RAISE EXCEPTION 'item_ledger INSERT rejected: item_id = % does not exist', NEW.item_id;
         END IF;
 
-        v_expected := digest(v_genesis || NEW.event_hash, 'sha256');
+        v_expected := sha384(v_genesis || NEW.event_hash);
 
         IF NEW.hash IS DISTINCT FROM v_expected THEN
             RAISE EXCEPTION 'item_ledger INSERT rejected: genesis hash mismatch for item_id = %', NEW.item_id;
@@ -65,7 +69,7 @@ BEGIN
                 NEW.prev_id, v_prev_item, NEW.item_id;
         END IF;
 
-        v_expected := digest(v_prev_hash || NEW.event_hash, 'sha256');
+        v_expected := sha384(v_prev_hash || NEW.event_hash);
 
         IF NEW.hash IS DISTINCT FROM v_expected THEN
             RAISE EXCEPTION 'item_ledger INSERT rejected: chain hash mismatch (prev_id = %)', NEW.prev_id;

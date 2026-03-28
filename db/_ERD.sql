@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS audit.item_ledger
     prev_id bigint,
     version smallint NOT NULL DEFAULT 1,
     hash bytea NOT NULL,
-    event_type character(13) NOT NULL,
+    event_type audit.e_item_event_type NOT NULL,
     event_hash bytea NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     item_id bigint NOT NULL,
@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS data.bids
     id bigserial NOT NULL,
     value money NOT NULL,
     status data.e_bid_status NOT NULL DEFAULT 'PENDING',
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
     offer_id bigint NOT NULL,
     bidder_id bigint NOT NULL,
     CONSTRAINT pk_bids_id PRIMARY KEY (id)

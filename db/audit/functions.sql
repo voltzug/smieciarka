@@ -1,21 +1,23 @@
 SET search_path TO audit;
 
-CREATE OR REPLACE FUNCTION _chain_hash(
+CREATE OR REPLACE FUNCTION audit._chain_hash(
     p_prev_hash bytea,
     p_hash bytea
 )
 RETURNS bytea
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = audit, core, pg_temp
 AS $$
 DECLARE
     v_result bytea;
 BEGIN
-    v_result := digest(p_prev_hash || p_hash, 'sha256');
+    v_result := sha384(p_prev_hash || p_hash);
     RETURN v_result;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION _init_item_chain(
+CREATE OR REPLACE FUNCTION audit._init_item_chain(
     p_item_id bigint,
     p_creator_id bigint,
     p_hash_genesis bytea,
@@ -23,15 +25,17 @@ CREATE OR REPLACE FUNCTION _init_item_chain(
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = audit, core, pg_temp
 AS $$
 DECLARE
-    v_event_type e_item_event_type := 'CREATE_ITEM';
+    v_event_type audit.e_item_event_type := 'CREATE_ITEM';
     v_chain_hash bytea;
     v_ledger_id bigint;
 BEGIN
-    v_chain_hash := _chain_hash(p_hash_genesis, p_event_hash);
+    v_chain_hash := audit._chain_hash(p_hash_genesis, p_event_hash);
 
-    INSERT INTO item_ledger (
+    INSERT INTO audit.item_ledger (
         prev_id,
         hash,
         event_type,
@@ -49,19 +53,25 @@ BEGIN
     )
     RETURNING id INTO v_ledger_id;
 
+    UPDATE core.items
+    SET ledger_head = v_ledger_id
+    WHERE id = p_item_id;
+
     RETURN v_ledger_id;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION append_item_event(
+CREATE OR REPLACE FUNCTION audit.append_item_event(
     p_prev_ledger_id bigint,
     p_item_id bigint,
     p_creator_id bigint,
-    p_event_type e_item_event_type,
+    p_event_type audit.e_item_event_type,
     p_event_hash bytea
 )
 RETURNS bigint
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = audit, core, pg_temp
 AS $$
 DECLARE
     v_prev_hash bytea;
@@ -70,11 +80,11 @@ DECLARE
 BEGIN
     BEGIN
         PERFORM 1 FROM item_ledger WHERE item_id = p_item_id FOR UPDATE;
-        SELECT hash INTO v_prev_hash FROM item_ledger WHERE id = p_prev_ledger_id;
+        SELECT hash INTO v_prev_hash FROM audit.item_ledger WHERE id = p_prev_ledger_id;
 
-        v_chain_hash := _chain_hash(v_prev_hash, p_event_hash);
+        v_chain_hash := audit._chain_hash(v_prev_hash, p_event_hash);
 
-        INSERT INTO item_ledger (
+        INSERT INTO audit.item_ledger (
             prev_id,
             hash,
             event_type,
@@ -97,15 +107,21 @@ BEGIN
         RAISE;
     END;
 
+    UPDATE core.items
+    SET ledger_head = v_ledger_id
+    WHERE id = p_item_id;
+
     RETURN v_ledger_id;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION mi_verify_item_chain(
+CREATE OR REPLACE FUNCTION audit.mi_verify_item_chain(
     p_item_id bigint
 )
 RETURNS boolean
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = audit, core, pg_temp
 AS $$
 DECLARE
     v_ledger_head bigint;
@@ -129,12 +145,12 @@ BEGIN
     -- Traverse the chain backwards
     WHILE v_curr_id IS NOT NULL LOOP
         SELECT prev_id, hash, event_hash INTO v_prev_id, v_curr_hash, v_event_hash
-        FROM item_ledger
+        FROM audit.item_ledger
         WHERE id = v_curr_id;
 
         IF v_prev_id IS NULL THEN
             -- Genesis event: use hash_genesis from core.items
-            v_expected_hash := _chain_hash(v_hash_genesis, v_event_hash);
+            v_expected_hash := audit._chain_hash(v_hash_genesis, v_event_hash);
 
             IF v_curr_hash != v_expected_hash THEN
                 v_chain_valid := false;
@@ -142,9 +158,9 @@ BEGIN
             END IF;
         ELSE
             -- Non-genesis: use hash from previous ledger entry
-            SELECT hash INTO v_prev_hash FROM item_ledger WHERE id = v_prev_id;
+            SELECT hash INTO v_prev_hash FROM audit.item_ledger WHERE id = v_prev_id;
 
-            v_expected_hash := _chain_hash(v_prev_hash, v_event_hash);
+            v_expected_hash := audit._chain_hash(v_prev_hash, v_event_hash);
 
             IF v_curr_hash != v_expected_hash THEN
                 v_chain_valid := false;

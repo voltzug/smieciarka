@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  db:
+    image: docker.io/library/postgres:16
+    networks:
+      - db_net
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  manager:
+    image: docker.io/dpage/pgadmin4:latest
+    ports:
+      - "127.0.0.1:5050:80"
+    networks:
+      - db_net
+    depends_on:
+      - db
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+
+  test:
+    image: docker.io/node:20-alpine
+    ports:
+      - "127.0.0.1:5000:80"
+    networks:
+      - db_net
+    depends_on:
+      - db
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGDATABASE=smieczarka
+      - PGUSER=${TEST_USER}
+      - PGPASSWORD=${TEST_PASSWORD}
+    volumes:
+      - ../test:/app/test:ro
+    working_dir: /app
+    command: sh /app/test/setup.sh
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  db_net:
+    driver: bridge
