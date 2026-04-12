@@ -356,3 +356,71 @@ BEGIN
     );
 END;
 $$;
+
+
+-- conversations
+CREATE OR REPLACE FUNCTION data.comment_item_offer(
+    p_commenter_id bigint,
+    p_offer_id bigint,
+    p_subject varchar(256),
+    p_contents text
+)
+RETURNS bigint
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = data, core, pg_temp
+AS $$
+DECLARE
+    v_offer record;
+    v_bid_id bigint := NULL;
+    v_conversation_id bigint;
+BEGIN
+    SELECT o.id, o.creator_id INTO v_offer
+    FROM data.offers o
+    WHERE o.id = p_offer_id;
+    IF v_offer.id IS NULL THEN
+        RAISE EXCEPTION 'Offer % does not exist', p_offer_id;
+    END IF;
+
+    -- Check if commenter has a bid on this offer
+    SELECT b.id INTO v_bid_id
+    FROM data.bids b
+    WHERE b.offer_id = p_offer_id AND b.bidder_id = p_commenter_id
+    ORDER BY b.created_at DESC
+    LIMIT 1;
+
+    -- Allow any user to comment, but if they have a bid, attach bid_id
+    IF v_bid_id IS NOT NULL THEN
+        INSERT INTO data.conversations(subject, contents, commenter_id, offer_id, bid_id)
+        VALUES (p_subject, p_contents, p_commenter_id, p_offer_id, v_bid_id)
+        RETURNING id INTO v_conversation_id;
+    ELSE
+        INSERT INTO data.conversations(subject, contents, commenter_id, offer_id)
+        VALUES (p_subject, p_contents, p_commenter_id, p_offer_id)
+        RETURNING id INTO v_conversation_id;
+    END IF;
+
+    RETURN v_conversation_id;
+END;
+$$;
+
+
+-- maintainance functions
+CREATE OR REPLACE FUNCTION data.mc_drop_offers(p_before timestamptz)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = data, pg_temp
+AS $$
+DECLARE
+    v_deleted_count integer := 0;
+BEGIN
+    DELETE FROM data.offers o
+    WHERE o.status = 'CLOSED'
+      AND (o.stamp).updated_at < p_before
+    RETURNING id;
+
+    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+    RETURN v_deleted_count;
+END;
+$$;

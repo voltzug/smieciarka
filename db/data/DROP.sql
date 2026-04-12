@@ -19,6 +19,10 @@ DROP FUNCTION IF EXISTS _bid_hash(bigint, bigint, bigint, bigint, money, timesta
 DROP FUNCTION IF EXISTS place_item_bid(bigint, bigint, money);
 DROP FUNCTION IF EXISTS cancel_item_bid(bigint, bigint);
 
+DROP FUNCTION IF EXISTS comment_item_offer(bigint, bigint, varchar, text);
+
+DROP FUNCTION IF EXISTS mc_drop_offers(timestamptz);
+
 -- Tables
 DROP TABLE IF EXISTS conversations;
 DROP TABLE IF EXISTS bids;

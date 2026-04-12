@@ -355,6 +355,7 @@ router.get("/stats", async (req, res) => {
       (SELECT COUNT(*) FROM core.items) AS items,
       (SELECT COUNT(*) FROM data.offers) AS offers,
       (SELECT COUNT(*) FROM data.bids) AS bids,
+      (SELECT COUNT(*) FROM data.conversations) AS conversations,
       (SELECT COUNT(*) FROM audit.item_ledger) AS item_ledger
   `;
 

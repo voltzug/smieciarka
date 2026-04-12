@@ -5,13 +5,13 @@
 
 
 ## users
-- [ ] ALL
-  - [ ] prevent direct users/items/offers update
-  - [ ] prevent direct item_ledger insert/update/delete
-- [ ] elephant (safe internal without login for functions)
+- [x] ALL
+  - [x] prevent direct users/items/offers update
+  - [x] prevent direct item_ledger insert/update/delete
+- [x] elephant (safe internal without login for functions)
 - [x] moder
 - [x] app
-  - [ ] prevent calling private functions (start with `_`)
+  - [x] prevent calling private functions (start with `_`)
 - [x] app_test
 
 
@@ -70,12 +70,11 @@
   - [x] types
     - [x] e_bid_status: PENDING (default), CANCELLED, FINISHED
 
-- [ ] conversations
-  - [ ] constraints
-    - [ ] cascade conversations on offer deletion
-  - [ ] functions
-    - [ ] `comment_item_offer` (only BEFORE bid was placed by commenter)
-    - [ ] `comment_item_bid` (after bid placement)
+- [x] conversations
+  - [x] constraints
+    - [x] cascade conversations on offer deletion
+  - [x] functions
+    - [x] `comment_item_offer`
 
 
 ## audit
@@ -94,9 +93,9 @@
 
 
 ## maintainance
-- [ ] cleanup
-  - [ ] offers (+bids+conversations)
-    - [ ] `mc_drop_offers` (cascade delete offers where .status=='CLOSED' AND .stamp.updated_at is older that certain date)
+- [x] cleanup
+  - [x] offers (+bids+conversations)
+    - [x] `mc_drop_offers` (cascade delete offers where .status=='CLOSED' AND .stamp.updated_at is older that certain date)
 - [x] integrity
   - [x] item_ledger
     - [x] `mi_verify_item_chain` -> boolean

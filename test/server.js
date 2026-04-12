@@ -816,6 +816,11 @@ app.get("/concurrency", (req, res) => {
         </div>
 
         <div class="row">
+          <button id="run-conversations" type="button">Conversation comments (buyer/seller)</button>
+          <div id="result-conversations" class="output"></div>
+        </div>
+
+        <div class="row">
           <button id="run-selects" type="button">Intensive selects</button>
           <div id="result-selects" class="output"></div>
         </div>
@@ -929,6 +934,25 @@ app.get("/concurrency", (req, res) => {
             creator_id: creatorId,
             sn: \`SN-\${prefix}-\${suffix}\`,
             title: \`Item \${prefix} \${suffix}\`,
+          }),
+        });
+      };
+
+      const listConversations = async (offerId, bidId) => {
+        const query = bidId ? \`?offer_id=\${offerId}&bid_id=\${bidId}\` : \`?offer_id=\${offerId}\`;
+        return fetchJson(\`/api/buyer/conversations\${query}\`);
+      };
+
+      const postConversation = async (role, commenterId, offerId, subject, contents, bidId = null) => {
+        return fetchJson(\`/api/\${role}/conversations\`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            commenter_id: commenterId,
+            offer_id: offerId,
+            bid_id: bidId || undefined,
+            subject,
+            contents,
           }),
         });
       };
@@ -1052,6 +1076,100 @@ app.get("/concurrency", (req, res) => {
             record(stats, cancel.durationMs);
           },
         },
+        conversations: {
+          name: "Conversation comments (buyer/seller)",
+          buttonId: "run-conversations",
+          resultId: "result-conversations",
+          setup: async (stats) => {
+            const seller = await createUser("seller");
+            record(stats, seller.durationMs);
+            const item = await createItem(seller.user_id, "conv");
+            record(stats, item.durationMs);
+            const offer = await registerOffer(seller.user_id, item.item_id, 140);
+            record(stats, offer.durationMs);
+            const buyer = await createUser("buyer");
+            record(stats, buyer.durationMs);
+            const bid = await placeBid(buyer.user_id, offer.offer_id, 150);
+            record(stats, bid.durationMs);
+            return {
+              sellerId: seller.user_id,
+              buyerId: buyer.user_id,
+              offerId: offer.offer_id,
+              bidId: bid.bid_id,
+            };
+          },
+          task: async (stats, context) => {
+            const buyerMsg = await postConversation(
+              "buyer",
+              context.buyerId,
+              context.offerId,
+              \`Buyer note \${uniqueSuffix()}\`,
+              \`Buyer note for offer \${context.offerId}\`,
+              context.bidId
+            );
+            record(stats, buyerMsg.durationMs);
+
+            const sellerMsg = await postConversation(
+              "seller",
+              context.sellerId,
+              context.offerId,
+              \`Seller note \${uniqueSuffix()}\`,
+              \`Seller reply for offer \${context.offerId}\`,
+              context.bidId
+            );
+            record(stats, sellerMsg.durationMs);
+
+            const listed = await listConversations(context.offerId, context.bidId);
+            record(stats, listed.durationMs);
+          },
+        },
+        conversations: {
+          name: "Conversation comments (buyer/seller)",
+          buttonId: "run-conversations",
+          resultId: "result-conversations",
+          setup: async (stats) => {
+            const seller = await createUser("seller");
+            record(stats, seller.durationMs);
+            const item = await createItem(seller.user_id, "conv");
+            record(stats, item.durationMs);
+            const offer = await registerOffer(seller.user_id, item.item_id, 140);
+            record(stats, offer.durationMs);
+            const buyer = await createUser("buyer");
+            record(stats, buyer.durationMs);
+            const bid = await placeBid(buyer.user_id, offer.offer_id, 150);
+            record(stats, bid.durationMs);
+            return {
+              sellerId: seller.user_id,
+              buyerId: buyer.user_id,
+              offerId: offer.offer_id,
+              bidId: bid.bid_id,
+            };
+          },
+          task: async (stats, context) => {
+            const buyerMsg = await postConversation(
+              "buyer",
+              context.buyerId,
+              context.offerId,
+              \`Buyer note \${uniqueSuffix()}\`,
+              \`Buyer note for offer \${context.offerId}\`,
+              context.bidId
+            );
+            record(stats, buyerMsg.durationMs);
+
+            const sellerMsg = await postConversation(
+              "seller",
+              context.sellerId,
+              context.offerId,
+              \`Seller note \${uniqueSuffix()}\`,
+              \`Seller reply for offer \${context.offerId}\`,
+              context.bidId
+            );
+            record(stats, sellerMsg.durationMs);
+
+            const listed = await listConversations(context.offerId, context.bidId);
+            record(stats, listed.durationMs);
+          },
+        },
         intensiveSelects: {
           name: "Intensive selects",
           buttonId: "run-selects",
@@ -1065,6 +1183,8 @@ app.get("/concurrency", (req, res) => {
             record(stats, offers.durationMs);
             const bids = await fetchJson("/api/bids");
             record(stats, bids.durationMs);
+            const conversations = await fetchJson("/api/buyer/conversations?offer_id=1");
+            record(stats, conversations.durationMs);
           },
         },
         historyVerify: {
@@ -1090,6 +1210,7 @@ app.get("/concurrency", (req, res) => {
       byId("run-user-create").addEventListener("click", () => runScenario(scenarios.userCreate));
       byId("run-offer-register").addEventListener("click", () => runScenario(scenarios.offerRegister));
       byId("run-bid-cycle").addEventListener("click", () => runScenario(scenarios.bidCycle));
+      byId("run-conversations").addEventListener("click", () => runScenario(scenarios.conversations));
       byId("run-selects").addEventListener("click", () => runScenario(scenarios.intensiveSelects));
       byId("run-history").addEventListener("click", () => runScenario(scenarios.historyVerify));
 
@@ -1098,6 +1219,7 @@ app.get("/concurrency", (req, res) => {
           runScenario(scenarios.userCreate),
           runScenario(scenarios.offerRegister),
           runScenario(scenarios.bidCycle),
+          runScenario(scenarios.conversations),
           runScenario(scenarios.intensiveSelects),
           runScenario(scenarios.historyVerify),
         ]);
