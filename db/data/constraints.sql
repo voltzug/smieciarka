@@ -10,6 +10,7 @@ ALTER TABLE data.offers
   CHECK (price > 0::money);
 
 
--- 1 bid per user-offer
-ALTER TABLE data.bids
-  ADD CONSTRAINT uq_bids_bidder_offer UNIQUE (bidder_id, offer_id);
+-- 1 PENDING bid per user-offer
+CREATE UNIQUE INDEX uq_bids_bidder_offer_pending
+  ON data.bids (bidder_id, offer_id)
+  WHERE status = 'PENDING';

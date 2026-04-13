@@ -338,6 +338,29 @@ app.get("/buyer", (req, res) => {
           <div id="buyer-bids-output" class="output"></div>
           <div id="buyer-bids-table" class="table-wrap"></div>
         </form>
+
+        <form id="buyer-list-conversations-form" class="stack">
+          <h3>List conversations</h3>
+          <div class="grid">
+            <label>Offer ID <input name="offer_id" type="number" min="1" required /></label>
+            <label>Bid ID (optional) <input name="bid_id" type="number" min="1" /></label>
+          </div>
+          <button type="submit">Load conversations</button>
+          <div id="buyer-conversations-output" class="output"></div>
+          <div id="buyer-conversations-table" class="table-wrap"></div>
+        </form>
+
+        <form id="buyer-post-conversation-form" class="stack">
+          <h3>Post message (comment_item_offer)</h3>
+          <div class="grid">
+            <label>Commenter ID <input name="commenter_id" type="number" min="1" required /></label>
+            <label>Offer ID <input name="offer_id" type="number" min="1" required /></label>
+            <label>Subject <input name="subject" /></label>
+            <label>Contents <input name="contents" required /></label>
+          </div>
+          <button type="submit">Post message</button>
+          <div id="buyer-post-conversation-output" class="output"></div>
+        </form>
       </section>
     </main>
 
@@ -486,6 +509,52 @@ app.get("/buyer", (req, res) => {
         }
       });
 
+      bindForm("buyer-list-conversations-form", async (formData) => {
+        const offerId = formData.get("offer_id");
+        if (!offerId) {
+          return setOutput("buyer-conversations-output", "offer_id is required", true);
+        }
+
+        const query = toQueryString({
+          offer_id: offerId,
+          bid_id: formData.get("bid_id"),
+        });
+
+        setOutput("buyer-conversations-output", "Loading...");
+        setTable("buyer-conversations-table", "");
+
+        try {
+          const payload = await fetchJson(\`/api/buyer/conversations?\${query}\`);
+          setOutput("buyer-conversations-output", \`Conversations: \${payload.count} (t=\${formatMs(payload.durationMs)} ms)\`);
+          const columns = [
+            { key: "conversation_id", label: "ID" },
+            { key: "offer_id", label: "Offer" },
+            { key: "bid_id", label: "Bid" },
+            { key: "commenter_id", label: "Commenter" },
+            { key: "subject", label: "Subject" },
+            { key: "contents", label: "Contents" },
+            { key: "created_at", label: "Created" },
+          ];
+          setTable("buyer-conversations-table", renderTable(payload.rows, columns));
+        } catch (error) {
+          setOutput("buyer-conversations-output", error.message, true);
+        }
+      });
+
+      bindForm("buyer-post-conversation-form", async (formData) => {
+        setOutput("buyer-post-conversation-output", "Posting...");
+        try {
+          const payload = await fetchJson("/api/buyer/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(Object.fromEntries(formData)),
+          });
+          setOutput("buyer-post-conversation-output", \`Posted conversation_id \${payload.conversation_id} (t=\${formatMs(payload.durationMs)} ms)\`);
+        } catch (error) {
+          setOutput("buyer-post-conversation-output", error.message, true);
+        }
+      });
+
       document.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-action]");
         if (!button) return;
@@ -579,6 +648,29 @@ app.get("/seller", (req, res) => {
           <button type="submit">Load offers</button>
           <div id="seller-offers-output" class="output"></div>
           <div id="seller-offers-table" class="table-wrap"></div>
+        </form>
+
+        <form id="seller-list-conversations-form" class="stack">
+          <h3>List conversations</h3>
+          <div class="grid">
+            <label>Offer ID <input name="offer_id" type="number" min="1" required /></label>
+            <label>Bid ID (optional) <input name="bid_id" type="number" min="1" /></label>
+          </div>
+          <button type="submit">Load conversations</button>
+          <div id="seller-conversations-output" class="output"></div>
+          <div id="seller-conversations-table" class="table-wrap"></div>
+        </form>
+
+        <form id="seller-post-conversation-form" class="stack">
+          <h3>Post message (comment_item_offer)</h3>
+          <div class="grid">
+            <label>Commenter ID <input name="commenter_id" type="number" min="1" required /></label>
+            <label>Offer ID <input name="offer_id" type="number" min="1" required /></label>
+            <label>Subject <input name="subject" /></label>
+            <label>Contents <input name="contents" required /></label>
+          </div>
+          <button type="submit">Post message</button>
+          <div id="seller-post-conversation-output" class="output"></div>
         </form>
       </section>
     </main>
@@ -730,6 +822,54 @@ app.get("/seller", (req, res) => {
         }
       });
 
+      bindForm("seller-list-conversations-form", async (formData) => {
+        const offerId = formData.get("offer_id");
+        if (!offerId) {
+          return setOutput("seller-conversations-output", "offer_id is required", true);
+        }
+
+        const query = new URLSearchParams({
+          offer_id: offerId,
+        });
+
+        const bidId = formData.get("bid_id");
+        if (bidId) query.set("bid_id", bidId);
+
+        setOutput("seller-conversations-output", "Loading...");
+        setTable("seller-conversations-table", "");
+
+        try {
+          const payload = await fetchJson(\`/api/seller/conversations?\${query.toString()}\`);
+          setOutput("seller-conversations-output", \`Conversations: \${payload.count} (t=\${formatMs(payload.durationMs)} ms)\`);
+          const columns = [
+            { key: "conversation_id", label: "ID" },
+            { key: "offer_id", label: "Offer" },
+            { key: "bid_id", label: "Bid" },
+            { key: "commenter_id", label: "Commenter" },
+            { key: "subject", label: "Subject" },
+            { key: "contents", label: "Contents" },
+            { key: "created_at", label: "Created" },
+          ];
+          setTable("seller-conversations-table", renderTable(payload.rows, columns));
+        } catch (error) {
+          setOutput("seller-conversations-output", error.message, true);
+        }
+      });
+
+      bindForm("seller-post-conversation-form", async (formData) => {
+        setOutput("seller-post-conversation-output", "Posting...");
+        try {
+          const payload = await fetchJson("/api/seller/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(Object.fromEntries(formData)),
+          });
+          setOutput("seller-post-conversation-output", \`Posted conversation_id \${payload.conversation_id} (t=\${formatMs(payload.durationMs)} ms)\`);
+        } catch (error) {
+          setOutput("seller-post-conversation-output", error.message, true);
+        }
+      });
+
       document.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-action]");
         if (!button) return;
@@ -816,11 +956,6 @@ app.get("/concurrency", (req, res) => {
         </div>
 
         <div class="row">
-          <button id="run-conversations" type="button">Conversation comments (buyer/seller)</button>
-          <div id="result-conversations" class="output"></div>
-        </div>
-
-        <div class="row">
           <button id="run-selects" type="button">Intensive selects</button>
           <div id="result-selects" class="output"></div>
         </div>
@@ -828,6 +963,20 @@ app.get("/concurrency", (req, res) => {
         <div class="row">
           <button id="run-history" type="button">Item history search / verification</button>
           <div id="result-history" class="output"></div>
+        </div>
+
+        <div class="row">
+          <button id="run-comments" type="button">Comment item offer (buyer + seller)</button>
+          <label>Offer ID
+            <input id="comment-offer-id" type="number" min="1" />
+          </label>
+          <label>Seller ID
+            <input id="comment-seller-id" type="number" min="1" />
+          </label>
+          <label>Buyer ID
+            <input id="comment-buyer-id" type="number" min="1" />
+          </label>
+          <div id="result-comments" class="output"></div>
         </div>
       </section>
     </main>
@@ -862,6 +1011,7 @@ app.get("/concurrency", (req, res) => {
         max: 0,
         errors: 0,
         lockErrors: 0,
+        errorByMessage: {},
       });
 
       const record = (stats, value) => {
@@ -878,19 +1028,27 @@ app.get("/concurrency", (req, res) => {
       };
 
       const recordError = (stats, error) => {
+        const message = (error?.message || String(error || "unknown error")).trim();
         if (isLockError(error)) {
           stats.lockErrors += 1;
         } else {
           stats.errors += 1;
         }
+        stats.errorByMessage[message] = (stats.errorByMessage[message] || 0) + 1;
       };
 
       const summarize = (stats) => {
+        const topErrors = Object.entries(stats.errorByMessage)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([msg, cnt]) => \`\${cnt}x \${msg}\`)
+          .join(" | ");
+
         if (stats.count === 0) {
-          return \`No results. Errors: \${stats.errors}, lock_errors: \${stats.lockErrors}\`;
+          return \`No results. Errors: \${stats.errors}, lock_errors: \${stats.lockErrors}\${topErrors ? \`, top_errors: \${topErrors}\` : ""}\`;
         }
         const avg = stats.sum / stats.count;
-        return \`avg=\${formatMs(avg)} ms, min=\${formatMs(stats.min)} ms, max=\${formatMs(stats.max)} ms, samples=\${stats.count}, errors=\${stats.errors}, lock_errors=\${stats.lockErrors}\`;
+        return \`avg=\${formatMs(avg)} ms, min=\${formatMs(stats.min)} ms, max=\${formatMs(stats.max)} ms, samples=\${stats.count}, errors=\${stats.errors}, lock_errors=\${stats.lockErrors}\${topErrors ? \`, top_errors: \${topErrors}\` : ""}\`;
       };
 
       const runConcurrent = async (task, concurrency, periodMs) => {
@@ -938,25 +1096,6 @@ app.get("/concurrency", (req, res) => {
         });
       };
 
-      const listConversations = async (offerId, bidId) => {
-        const query = bidId ? \`?offer_id=\${offerId}&bid_id=\${bidId}\` : \`?offer_id=\${offerId}\`;
-        return fetchJson(\`/api/buyer/conversations\${query}\`);
-      };
-
-      const postConversation = async (role, commenterId, offerId, subject, contents, bidId = null) => {
-        return fetchJson(\`/api/\${role}/conversations\`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            commenter_id: commenterId,
-            offer_id: offerId,
-            bid_id: bidId || undefined,
-            subject,
-            contents,
-          }),
-        });
-      };
-
       const registerOffer = async (creatorId, itemId, price) => {
         return fetchJson("/api/seller/offers", {
           method: "POST",
@@ -987,6 +1126,32 @@ app.get("/concurrency", (req, res) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: bidderId }),
+        });
+      };
+
+      const postBuyerConversation = async (commenterId, offerId, contents) => {
+        return fetchJson("/api/buyer/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            commenter_id: commenterId,
+            offer_id: offerId,
+            subject: "load-test-buyer",
+            contents,
+          }),
+        });
+      };
+
+      const postSellerConversation = async (commenterId, offerId, contents) => {
+        return fetchJson("/api/seller/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            commenter_id: commenterId,
+            offer_id: offerId,
+            subject: "load-test-seller",
+            contents,
+          }),
         });
       };
 
@@ -1076,100 +1241,6 @@ app.get("/concurrency", (req, res) => {
             record(stats, cancel.durationMs);
           },
         },
-        conversations: {
-          name: "Conversation comments (buyer/seller)",
-          buttonId: "run-conversations",
-          resultId: "result-conversations",
-          setup: async (stats) => {
-            const seller = await createUser("seller");
-            record(stats, seller.durationMs);
-            const item = await createItem(seller.user_id, "conv");
-            record(stats, item.durationMs);
-            const offer = await registerOffer(seller.user_id, item.item_id, 140);
-            record(stats, offer.durationMs);
-            const buyer = await createUser("buyer");
-            record(stats, buyer.durationMs);
-            const bid = await placeBid(buyer.user_id, offer.offer_id, 150);
-            record(stats, bid.durationMs);
-            return {
-              sellerId: seller.user_id,
-              buyerId: buyer.user_id,
-              offerId: offer.offer_id,
-              bidId: bid.bid_id,
-            };
-          },
-          task: async (stats, context) => {
-            const buyerMsg = await postConversation(
-              "buyer",
-              context.buyerId,
-              context.offerId,
-              \`Buyer note \${uniqueSuffix()}\`,
-              \`Buyer note for offer \${context.offerId}\`,
-              context.bidId
-            );
-            record(stats, buyerMsg.durationMs);
-
-            const sellerMsg = await postConversation(
-              "seller",
-              context.sellerId,
-              context.offerId,
-              \`Seller note \${uniqueSuffix()}\`,
-              \`Seller reply for offer \${context.offerId}\`,
-              context.bidId
-            );
-            record(stats, sellerMsg.durationMs);
-
-            const listed = await listConversations(context.offerId, context.bidId);
-            record(stats, listed.durationMs);
-          },
-        },
-        conversations: {
-          name: "Conversation comments (buyer/seller)",
-          buttonId: "run-conversations",
-          resultId: "result-conversations",
-          setup: async (stats) => {
-            const seller = await createUser("seller");
-            record(stats, seller.durationMs);
-            const item = await createItem(seller.user_id, "conv");
-            record(stats, item.durationMs);
-            const offer = await registerOffer(seller.user_id, item.item_id, 140);
-            record(stats, offer.durationMs);
-            const buyer = await createUser("buyer");
-            record(stats, buyer.durationMs);
-            const bid = await placeBid(buyer.user_id, offer.offer_id, 150);
-            record(stats, bid.durationMs);
-            return {
-              sellerId: seller.user_id,
-              buyerId: buyer.user_id,
-              offerId: offer.offer_id,
-              bidId: bid.bid_id,
-            };
-          },
-          task: async (stats, context) => {
-            const buyerMsg = await postConversation(
-              "buyer",
-              context.buyerId,
-              context.offerId,
-              \`Buyer note \${uniqueSuffix()}\`,
-              \`Buyer note for offer \${context.offerId}\`,
-              context.bidId
-            );
-            record(stats, buyerMsg.durationMs);
-
-            const sellerMsg = await postConversation(
-              "seller",
-              context.sellerId,
-              context.offerId,
-              \`Seller note \${uniqueSuffix()}\`,
-              \`Seller reply for offer \${context.offerId}\`,
-              context.bidId
-            );
-            record(stats, sellerMsg.durationMs);
-
-            const listed = await listConversations(context.offerId, context.bidId);
-            record(stats, listed.durationMs);
-          },
-        },
         intensiveSelects: {
           name: "Intensive selects",
           buttonId: "run-selects",
@@ -1183,8 +1254,6 @@ app.get("/concurrency", (req, res) => {
             record(stats, offers.durationMs);
             const bids = await fetchJson("/api/bids");
             record(stats, bids.durationMs);
-            const conversations = await fetchJson("/api/buyer/conversations?offer_id=1");
-            record(stats, conversations.durationMs);
           },
         },
         historyVerify: {
@@ -1205,23 +1274,52 @@ app.get("/concurrency", (req, res) => {
             record(stats, verify.durationMs);
           },
         },
+        commentsBothSides: {
+          name: "Comment item offer (buyer + seller)",
+          buttonId: "run-comments",
+          resultId: "result-comments",
+          setup: async () => {
+            const offerId = byId("comment-offer-id")?.value?.trim();
+            const sellerId = byId("comment-seller-id")?.value?.trim();
+            const buyerId = byId("comment-buyer-id")?.value?.trim();
+            if (!offerId || !sellerId || !buyerId) {
+              throw new Error("Offer ID, Seller ID, Buyer ID required.");
+            }
+            return { offerId, sellerId, buyerId };
+          },
+          task: async (stats, context) => {
+            const buyerComment = await postBuyerConversation(
+              context.buyerId,
+              context.offerId,
+              "buyer side load test message"
+            );
+            record(stats, buyerComment.durationMs);
+
+            const sellerComment = await postSellerConversation(
+              context.sellerId,
+              context.offerId,
+              "seller side load test message"
+            );
+            record(stats, sellerComment.durationMs);
+          },
+        },
       };
 
       byId("run-user-create").addEventListener("click", () => runScenario(scenarios.userCreate));
       byId("run-offer-register").addEventListener("click", () => runScenario(scenarios.offerRegister));
       byId("run-bid-cycle").addEventListener("click", () => runScenario(scenarios.bidCycle));
-      byId("run-conversations").addEventListener("click", () => runScenario(scenarios.conversations));
       byId("run-selects").addEventListener("click", () => runScenario(scenarios.intensiveSelects));
       byId("run-history").addEventListener("click", () => runScenario(scenarios.historyVerify));
+      byId("run-comments").addEventListener("click", () => runScenario(scenarios.commentsBothSides));
 
       byId("run-all").addEventListener("click", async () => {
         await Promise.all([
           runScenario(scenarios.userCreate),
           runScenario(scenarios.offerRegister),
           runScenario(scenarios.bidCycle),
-          runScenario(scenarios.conversations),
           runScenario(scenarios.intensiveSelects),
           runScenario(scenarios.historyVerify),
+          runScenario(scenarios.commentsBothSides),
         ]);
       });
     </script>

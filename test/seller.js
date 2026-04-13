@@ -189,7 +189,7 @@ router.post("/offers/:id/transfer", async (req, res) => {
 router.get("/conversations", async (req, res) => {
   const { offer_id, bid_id } = req.query || {};
   let offerId;
-  let bidId;
+  let bidId = null;
 
   try {
     offerId = parseId(offer_id, "offer_id");
@@ -200,30 +200,24 @@ router.get("/conversations", async (req, res) => {
     return sendError(res, error);
   }
 
-  const params = [offerId];
-  const bidFilter = bidId ? `AND c.bid_id = $2` : "";
-  if (bidId) params.push(bidId);
-
   const sql = `
     SELECT
       c.id AS conversation_id,
       c.subject,
       c.contents,
+      c.created_at,
       c.commenter_id,
       c.offer_id,
-      c.bid_id,
-      c.created_at,
-      u.login AS commenter_login
+      c.bid_id
     FROM data.conversations c
-    JOIN core.users u ON u.id = c.commenter_id
     WHERE c.offer_id = $1
-    ${bidFilter}
-    ORDER BY c.created_at ASC, c.id ASC
+      AND ($2::bigint IS NULL OR c.bid_id = $2)
+    ORDER BY c.id DESC
     LIMIT 999
   `;
 
   try {
-    const { result, durationMs } = await timedQuery(sql, params);
+    const { result, durationMs } = await timedQuery(sql, [offerId, bidId]);
     res.json({
       ok: true,
       durationMs,
@@ -238,117 +232,29 @@ router.get("/conversations", async (req, res) => {
 router.post("/conversations", async (req, res) => {
   let commenterId;
   let offerId;
-  const { bid_id, subject, contents } = req.body || {};
-  let bidId = null;
+  const subject = req.body?.subject || null;
+  const contents = req.body?.contents || null;
 
   try {
     commenterId = parseId(req.body?.commenter_id, "commenter_id");
     offerId = parseId(req.body?.offer_id, "offer_id");
-    if (bid_id !== undefined && bid_id !== null && bid_id !== "") {
-      bidId = parseId(bid_id, "bid_id");
-    }
-    if (!subject || !contents) {
-      throw new Error("subject and contents are required");
+    if (!contents) {
+      throw new Error("contents is required");
     }
   } catch (error) {
     return sendError(res, error);
   }
 
-  const sql = `
-    INSERT INTO data.conversations (subject, contents, commenter_id, offer_id, bid_id)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id AS conversation_id
-  `;
+  const sql =
+    "SELECT data.comment_item_offer($1, $2, $3, $4) AS conversation_id";
 
   try {
-    const { result, durationMs } = await timedQuery(sql, [subject, contents, commenterId, offerId, bidId]);
-    res.json({
-      ok: true,
-      durationMs,
-      conversation_id: result.rows[0]?.conversation_id,
-    });
-  } catch (error) {
-    sendError(res, error, 500);
-  }
-});
-
-module.exports = router;
-router.get("/conversations", async (req, res) => {
-  const { offer_id, bid_id } = req.query || {};
-  let offerId;
-  let bidId;
-
-  try {
-    offerId = parseId(offer_id, "offer_id");
-    if (bid_id !== undefined && bid_id !== null && bid_id !== "") {
-      bidId = parseId(bid_id, "bid_id");
-    }
-  } catch (error) {
-    return sendError(res, error);
-  }
-
-  const params = [offerId];
-  const bidFilter = bidId ? `AND c.bid_id = $2` : "";
-  if (bidId) params.push(bidId);
-
-  const sql = `
-    SELECT
-      c.id AS conversation_id,
-      c.subject,
-      c.contents,
-      c.commenter_id,
-      c.offer_id,
-      c.bid_id,
-      c.created_at,
-      u.login AS commenter_login
-    FROM data.conversations c
-    JOIN core.users u ON u.id = c.commenter_id
-    WHERE c.offer_id = $1
-    ${bidFilter}
-    ORDER BY c.created_at ASC, c.id ASC
-    LIMIT 999
-  `;
-
-  try {
-    const { result, durationMs } = await timedQuery(sql, params);
-    res.json({
-      ok: true,
-      durationMs,
-      count: result.rowCount,
-      rows: result.rows,
-    });
-  } catch (error) {
-    sendError(res, error, 500);
-  }
-});
-
-router.post("/conversations", async (req, res) => {
-  let commenterId;
-  let offerId;
-  const { bid_id, subject, contents } = req.body || {};
-  let bidId = null;
-
-  try {
-    commenterId = parseId(req.body?.commenter_id, "commenter_id");
-    offerId = parseId(req.body?.offer_id, "offer_id");
-    if (bid_id !== undefined && bid_id !== null && bid_id !== "") {
-      bidId = parseId(bid_id, "bid_id");
-    }
-    if (!subject || !contents) {
-      throw new Error("subject and contents are required");
-    }
-  } catch (error) {
-    return sendError(res, error);
-  }
-
-  const sql = `
-    INSERT INTO data.conversations (subject, contents, commenter_id, offer_id, bid_id)
-    VALUES ($1, $2, $3, $4, $5)
-    RETURNING id AS conversation_id
-  `;
-
-  try {
-    const { result, durationMs } = await timedQuery(sql, [subject, contents, commenterId, offerId, bidId]);
+    const { result, durationMs } = await timedQuery(sql, [
+      commenterId,
+      offerId,
+      subject,
+      contents,
+    ]);
     res.json({
       ok: true,
       durationMs,

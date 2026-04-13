@@ -90,7 +90,7 @@ $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_test') THEN
-        CREATE ROLE app_test CONNECTION LIMIT 1 LOGIN PASSWORD 'app_test' INHERIT;
+        CREATE ROLE app_test CONNECTION LIMIT 6 LOGIN PASSWORD 'app_test' INHERIT;
     END IF;
 END;
 $$;
