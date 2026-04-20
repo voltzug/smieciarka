@@ -159,3 +159,80 @@ Planned:
 > [!IMPORTANT]
 > Event ledger integrity depends on append-only semantics and strict chain validation.  
 > Any bypass of function-based write path weakens audit guarantees.
+
+---
+
+# Query Performance Monitoring
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+SHOW shared_preload_libraries;
+-- SELECT pg_stat_statements_reset();
+```
+
+## Cheatshit
+### General
+#### Top 9 slowest queries
+```sql
+SELECT 
+    round(total_exec_time::numeric, 2) AS total_ms,
+    calls, 
+    round(mean_exec_time::numeric, 2) AS mean_ms, 
+    round(stddev_exec_time::numeric, 2) as jitter_ms, -- High jitter means locking issues
+    query 
+FROM pg_stat_statements 
+ORDER BY total_exec_time DESC 
+LIMIT 9;
+```
+
+#### Top 9 io hard queries
+```sql
+SELECT 
+    query, 
+    calls, 
+    shared_blks_hit AS cache_hits, 
+    shared_blks_read AS disk_reads
+FROM pg_stat_statements 
+ORDER BY shared_blks_read DESC 
+LIMIT 9;
+```
+
+### Functions
+```sql
+SELECT 
+    query, 
+    calls, 
+    round(total_exec_time::numeric, 2) as total_ms,
+    shared_blks_hit + shared_blks_read as total_io_blocks
+FROM pg_stat_statements 
+WHERE query ILIKE 'SELECT %core.%' 
+   OR query ILIKE 'SELECT %data.%'
+   OR query ILIKE 'SELECT %audit.%'
+ORDER BY total_exec_time DESC;
+```
+
+#### "Chatty"
+```sql
+SELECT 
+    query, 
+    calls, 
+    round(mean_exec_time::numeric, 2) as mean_ms,
+    round((100 * total_exec_time / sum(total_exec_time) OVER())::numeric, 2) as percentage_of_workload
+FROM pg_stat_statements 
+ORDER BY calls DESC 
+LIMIT 9;
+```
+
+#### Forced disk read
+```sql
+SELECT 
+    query, 
+    calls,
+    shared_blks_read as disk_reads, -- Bad: Had to go to disk
+    shared_blks_hit as cache_hits,  -- Good: Found in RAM
+    round(100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0), 2) as cache_hit_ratio
+FROM pg_stat_statements 
+WHERE shared_blks_read > 0
+ORDER BY shared_blks_read DESC 
+LIMIT 9;
+```

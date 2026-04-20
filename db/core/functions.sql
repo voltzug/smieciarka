@@ -227,7 +227,7 @@ DECLARE
     v_item_hash bytea;
     v_stamp timestamptz;
 BEGIN
-    SELECT id, creator_id, sn, title, ledger_head
+    SELECT id, creator_id, sn, title, ledger_head, stamp
       INTO v_item
     FROM core.items
     WHERE id = p_item_id

@@ -1,174 +1,65 @@
-SET search_path TO core;
+-- pgbench core workload: user/item create + search
+SET search_path TO core, data, audit;
 
--- 1) Create two users
-DO $$
-DECLARE
-  v_u1 bigint;
-  v_u2 bigint;
-BEGIN
-  v_u1 := create_user('alice', 'password123', 'Alice', 'Smith', 'alice@example.com');
-  RAISE NOTICE 'Created user alice -> id=%', v_u1;
+-- scalable counts (indexed domains)
+\set users_n (100000 * :scale)
+\set items_n (100000 * :scale)
+\set offers_n (100000 * :scale)
+\set bids_n (100000 * :scale)
 
-  v_u2 := create_user('bob', 'hunter2', 'Bob', 'Jones', 'bob@example.com');
-  RAISE NOTICE 'Created user bob -> id=%', v_u2;
-END;
-$$;
+\set action random(1, 100)
 
--- 2) Create an item by alice (with description)
-DO $$
-DECLARE
-  v_item1 bigint;
-BEGIN
-  v_item1 := create_item('SN-0001', 'Test Item 1', (SELECT id FROM users WHERE login='alice' LIMIT 1), 'An item created for testing.');
-  RAISE NOTICE 'Created item -> id=%', v_item1;
-END;
-$$;
+\if :action <= 30
+BEGIN;
+SELECT (random() * 100000000)::bigint AS rnd \gset
+SELECT core.create_user(
+  format('u_%s_%s', :client_id, :rnd),
+  'pass',
+  'Name',
+  'Surname',
+  format('u_%s_%s@example.com', :client_id, :rnd)
+);
+COMMIT;
+\elif :action <= 60
+BEGIN;
+SELECT id AS creator_id FROM core.users ORDER BY random() LIMIT 1 \gset
+SELECT core.create_item(
+  :creator_id,
+  format('SN-%s-%s', :creator_id, (random() * 100000000)::bigint),
+  format('Item %s', (random() * 100000000)::bigint)
+);
+COMMIT;
+\else
+\set search_action random(1, 3)
+\if :search_action = 1
+-- use real item keys
+SELECT id AS item_id, sn AS item_sn, title AS item_title
+FROM core.items
+ORDER BY random()
+LIMIT 1
+\gset item_
 
--- 3) Inspect item and its genesis ledger row
--- \echo '--- Item rows ---'
-SELECT id, sn, title, creator_id, created_at, encode(hash_genesis,'hex') AS genesis_hex
-FROM items
-ORDER BY id;
-
--- \echo '--- Item ledger rows (after create_item) ---'
-SELECT id, prev_id, item_id, event_type, creator_id, created_at,
-        encode(hash,'hex') AS chain_hash_hex,
-        encode(event_hash,'hex') AS event_hash_hex
-FROM item_ledger
-ORDER BY item_id, id;
-
--- 4) Append a couple of events to the item's chain
-DO $$
-DECLARE
-  v_item_id bigint := (SELECT id FROM items WHERE sn='SN-0001' LIMIT 1);
-  v_alice bigint := (SELECT id FROM users WHERE login='alice' LIMIT 1);
-  v_bob bigint := (SELECT id FROM users WHERE login='bob' LIMIT 1);
-  v_lid1 bigint;
-  v_lid2 bigint;
-BEGIN
-  v_lid1 := append_item_event(v_item_id, 'TRANSFER', v_bob);
-  RAISE NOTICE 'Appended TRANSFER by bob -> ledger id=%', v_lid1;
-
-  v_lid2 := append_item_event(v_item_id, 'UPDATE', v_alice);
-  RAISE NOTICE 'Appended UPDATE by alice -> ledger id=%', v_lid2;
-END;
-$$;
-
--- \echo '--- Item ledger rows (after appends) ---'
-SELECT id, prev_id, item_id, event_type, creator_id, created_at,
-        encode(hash,'hex') AS chain_hash_hex,
-        encode(event_hash,'hex') AS event_hash_hex
-FROM item_ledger
-ORDER BY item_id, id;
-
--- 5) Attempt manual (forged) insert with wrong hash for chaining => should be rejected
-DO $$
-DECLARE
-  v_item_id bigint := (SELECT id FROM items WHERE sn='SN-0001' LIMIT 1);
-  v_tip_id bigint;
-BEGIN
-  SELECT id INTO v_tip_id
-  FROM item_ledger il
-  WHERE il.item_id = v_item_id
-    AND NOT EXISTS (SELECT 1 FROM item_ledger il2 WHERE il2.prev_id = il.id)
-  ORDER BY id DESC
-  LIMIT 1;
-
-  -- Try to insert a row with incorrect hash (random bytes) to simulate forgery.
-  BEGIN
-    INSERT INTO item_ledger (prev_id, hash, event_type, event_hash, creator_id, item_id)
-    VALUES (v_tip_id, gen_random_bytes(32), 'FORGE', gen_random_bytes(32), (SELECT id FROM users WHERE login='bob'), v_item_id);
-    RAISE NOTICE 'ERROR: forged insert unexpectedly succeeded';
-  EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Expected failure on forged insert: %', SQLERRM;
-  END;
-END;
-$$;
-
--- 6) Create a second item, then attempt to chain it to the first item's tip (cross-item prev_id) => should be rejected
-DO $$
-DECLARE
-  v_item1 bigint := (SELECT id FROM items WHERE sn='SN-0001' LIMIT 1);
-  v_item2 bigint;
-  v_tip1 bigint;
-BEGIN
-  v_item2 := create_item('SN-0002', 'Item Two', (SELECT id FROM users WHERE login='alice' LIMIT 1), NULL);
-  RAISE NOTICE 'Created second item -> id=%', v_item2;
-
-  SELECT id INTO v_tip1
-  FROM item_ledger il
-  WHERE il.item_id = v_item1
-    AND NOT EXISTS (SELECT 1 FROM item_ledger il2 WHERE il2.prev_id = il.id)
-  LIMIT 1;
-
-  BEGIN
-    -- Attempt to insert a ledger row for item2 but referencing tip1 as prev_id
-    INSERT INTO item_ledger (prev_id, hash, event_type, event_hash, creator_id, item_id)
-    VALUES (v_tip1,
-            gen_random_bytes(32), -- wrong hash on purpose
-            'TRANSFER',
-            gen_random_bytes(32),
-            (SELECT id FROM users WHERE login='bob'),
-            v_item2);
-    RAISE NOTICE 'ERROR: cross-item insert unexpectedly succeeded';
-  EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Expected failure on cross-item prev_id insert: %', SQLERRM;
-  END;
-END;
-$$;
-
--- 7) Attempt to insert a second genesis row for item1 (prev_id IS NULL) => unique index / trigger should reject
-DO $$
-DECLARE
-  v_item1 bigint := (SELECT id FROM items WHERE sn='SN-0001' LIMIT 1);
-BEGIN
-  BEGIN
-    INSERT INTO item_ledger (prev_id, hash, event_type, event_hash, creator_id, item_id)
-    VALUES (NULL, gen_random_bytes(32), 'CREATED', gen_random_bytes(32), (SELECT id FROM users WHERE login='alice'), v_item1);
-    RAISE NOTICE 'ERROR: duplicate genesis insert unexpectedly succeeded';
-  EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Expected failure on duplicate genesis insert: %', SQLERRM;
-  END;
-END;
-$$;
-
--- 8) Attempt UPDATE on a ledger row => should be rejected
-DO $$
-DECLARE
-  v_lid bigint := (SELECT id FROM item_ledger ORDER BY id LIMIT 1);
-BEGIN
-  BEGIN
-    UPDATE item_ledger SET hash = gen_random_bytes(32) WHERE id = v_lid;
-    RAISE NOTICE 'ERROR: UPDATE of ledger unexpectedly succeeded';
-  EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Expected failure on UPDATE: %', SQLERRM;
-  END;
-END;
-$$;
-
--- 9) Attempt DELETE on a ledger row => should be rejected
-DO $$
-DECLARE
-  v_lid bigint := (SELECT id FROM item_ledger ORDER BY id LIMIT 1);
-BEGIN
-  BEGIN
-    DELETE FROM item_ledger WHERE id = v_lid;
-    RAISE NOTICE 'ERROR: DELETE of ledger unexpectedly succeeded';
-  EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Expected failure on DELETE: %', SQLERRM;
-  END;
-END;
-$$;
-
--- 10) Final state of items and ledger
--- \echo '--- FINAL items ---'
-SELECT id, sn, title, creator_id, created_at, encode(hash_genesis, 'hex') AS genesis_hex
-FROM items
-ORDER BY id;
-
--- \echo '--- FINAL item_ledger ---'
-SELECT id, prev_id, item_ledger.item_id, event_type, creator_id, created_at,
-        encode(hash,'hex') AS chain_hash_hex,
-        encode(event_hash,'hex') AS event_hash_hex
-FROM item_ledger
-ORDER BY item_id, id;
+SELECT o.id AS offer_id, o.status AS offer_status, o.price, o.item_id,
+       i.sn, i.title, i.creator_id
+FROM data.offers o
+JOIN core.items i ON i.id = o.item_id
+WHERE i.sn = ':item_sn'
+   OR i.title = ':item_title'
+ORDER BY (o.stamp).created_at DESC
+LIMIT 20;
+\elif :search_action = 2
+SELECT id AS user_id FROM core.users ORDER BY random() LIMIT 1 \gset
+SELECT b.id, b.value, b.status, b.offer_id, b.created_at
+FROM data.bids b
+WHERE b.bidder_id = :user_id
+ORDER BY b.created_at DESC
+LIMIT 20;
+\else
+SELECT id AS user_id FROM core.users ORDER BY random() LIMIT 1 \gset
+SELECT o.id, o.status, o.price, o.item_id, (o.stamp).created_at AS created_at
+FROM data.offers o
+WHERE o.creator_id = :user_id
+ORDER BY (o.stamp).created_at DESC
+LIMIT 20;
+\endif
+\endif

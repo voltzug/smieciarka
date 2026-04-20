@@ -1,0 +1,293 @@
+=== Summary of Benchmarks on 4-core(U) 12GB RAM ===
+Brief Benchmark Results:
+- /home/audit/TEST.sql: 9 clients, 2 threads, 30s
+  - Transactions processed: 106
+  - TPS: 3.37
+  - Avg latency: 2672 ms
+
+- /home/core/TEST.sql: 9 clients, 2 threads, 30s
+  - Transactions processed: 242
+  - TPS: 7.44
+  - Avg latency: 1210 ms
+
+- /home/data/TEST.sql: 4 clients, 2 threads, 30s
+  - Transactions processed: 24 (run aborted due to shared memory error)
+  - TPS: 0.72
+  - Avg latency: 5571 ms
+
+Interpretation:
+- The core schema performs best, likely due to simpler queries and less I/O contention.
+- The audit schema is slower, possibly due to more complex logging and locking (e.g., FOR UPDATE on item_ledger).
+- The data schema test failed due to system resource exhaustion (shared memory), indicating heavy parallelism or large working sets.
+
+Query Analysis (pg_stat_statements):
+- The slowest and most I/O-intensive queries involve item_ledger (audit), change_item_details (core), and event appends (audit), with high disk reads and low cache hit ratios (5-7%).
+- (!fictional!) Counting and random selection queries (e.g., count(*) from bids, random() from items) are also expensive.
+- Functions that modify or append events are both slow and disk-heavy, suggesting possible bottlenecks in audit logging and item state changes.
+
+Overall:
+- The database is I/O bound for audit and data-heavy operations, with significant time spent on disk reads and event logging.
+- Optimizations could include increasing shared memory, tuning indexes, and reviewing audit logging strategies to reduce contention and disk usage.
+
+
+
+
+=== pgbench (16.13 (Debian 16.13-1.pgdg13+1)) ===
+
+>>> pgbench -n -h db -U app_test -c 9 -j 2 -T 30 -f /home/audit/TEST.sql smieczarka
+transaction type: /home/audit/TEST.sql
+scaling factor: 1
+query mode: simple
+number of clients: 9
+number of threads: 2
+maximum number of tries: 1
+duration: 30 s
+number of transactions actually processed: 106
+number of failed transactions: 0 (0.000%)
+latency average = 2671.916 ms
+initial connection time = 74.001 ms
+tps = 3.368369 (without initial connection time)
+
+
+>>> pgbench -n -h db -U app_test -c 9 -j 2 -T 30 -f /home/core/TEST.sql smieczarka
+transaction type: /home/core/TEST.sql
+scaling factor: 1
+query mode: simple
+number of clients: 9
+number of threads: 2
+maximum number of tries: 1
+duration: 30 s
+number of transactions actually processed: 242
+number of failed transactions: 0 (0.000%)
+latency average = 1209.834 ms
+initial connection time = 59.632 ms
+tps = 7.439040 (without initial connection time)
+
+
+>>> pgbench -n -h db -U app_test -c 4 -j 2 -T 30 -f /home/data/TEST.sql smieczarka
+pgbench: error: client 0 script 0 aborted in command 15 query 0: ERROR:  could not resize shared memory segment "/PostgreSQL.2809757698" to 4194304 bytes: No space left on device
+CONTEXT:  parallel worker
+transaction type: /home/data/TEST.sql
+scaling factor: 1
+query mode: simple
+number of clients: 4
+number of threads: 2
+maximum number of tries: 1
+duration: 30 s
+number of transactions actually processed: 24
+number of failed transactions: 0 (0.000%)
+latency average = 5570.789 ms
+initial connection time = 25.590 ms
+tps = 0.718031 (without initial connection time)
+pgbench: error: Run was aborted; the above results are incomplete.
+
+
+
+
+
+=== pg_stat_statements ===
+>>> 9 slovest
+"total_ms"	"calls"	"mean_ms"	"jitter_ms"	"query"
+382027.32	171	2234.08	788.60	"SELECT $3 FROM item_ledger WHERE item_id = p_item_id FOR UPDATE"
+278145.23	106	2624.01	395.97	"SELECT core.change_item_details($1, $2, $3)"
+278057.75	106	2623.19	396.40	"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_user_id,
+        $13,
+        v_item_hash
+    )"
+171823.11	160	1073.89	705.87	"SELECT LEAST(count(*), $1) AS bids_count FROM data.bids"
+146538.47	37	3960.50	1924.60	"SELECT LEAST(count(*), $1) AS no_offer_items_count
+    FROM core.items i
+    LEFT JOIN data.offers o
+      ON o.item_id = i.id AND o.status IN ($2,$3)
+   WHERE o.id IS NULL"
+134811.10	28	4814.68	1216.13	"SELECT id AS item_id, sn AS item_sn, title AS item_title
+FROM core.items
+ORDER BY random()
+LIMIT $1"
+103566.70	181	572.19	177.86	"SELECT id AS user_id FROM core.users ORDER BY random() LIMIT $1"
+101664.93	31	3279.51	1144.16	"SELECT i.id, i.creator_id
+      FROM core.items i
+      LEFT JOIN data.offers o
+        ON o.item_id = i.id AND o.status IN ($1,$2)
+     WHERE o.id IS NULL
+     OFFSET $3 LIMIT $4"
+91512.58	160	571.95	235.85	"SELECT LEAST(count(*), $1) AS items_count FROM core.items"
+
+
+>>> 9 io hard
+"query"	"calls"	"cache_hits"	"disk_reads"
+"SELECT $3 FROM item_ledger WHERE item_id = p_item_id FOR UPDATE"	171	979418	13469485
+"SELECT core.change_item_details($1, $2, $3)"	106	515670	8451436
+"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_user_id,
+        $13,
+        v_item_hash
+    )"	106	513141	8451419
+"SELECT LEAST(count(*), $1) AS bids_count FROM data.bids"	160	129876	8398284
+"SELECT i.id, i.creator_id
+      FROM core.items i
+      LEFT JOIN data.offers o
+        ON o.item_id = i.id AND o.status IN ($1,$2)
+     WHERE o.id IS NULL
+     OFFSET $3 LIMIT $4"	31	124274	4286323
+"SELECT data.register_item_offer(
+      $1,
+      $2,
+      ($3 / $4)::numeric::money,
+      format($5, $6)
+    )"	31	120723	3359747
+"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_creator_id,
+        $18,
+        v_offer_hash
+    )"	43	337734	3301932
+"SELECT data.cancel_item_offer($1, $2)"	22	262350	2781290
+"SELECT id AS item_id, sn AS item_sn, title AS item_title
+FROM core.items
+ORDER BY random()
+LIMIT $1"	28	682462	2425491
+
+
+>>> slow funcs
+"query"	"calls"	"total_ms"	"total_io_blocks"
+"SELECT core.change_item_details($1, $2, $3)"	106	278145.23	8967106
+"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_user_id,
+        $13,
+        v_item_hash
+    )"	106	278057.75	8964560
+"SELECT LEAST(count(*), $1) AS bids_count FROM data.bids"	160	171823.11	8528160
+"SELECT LEAST(count(*), $1) AS no_offer_items_count
+    FROM core.items i
+    LEFT JOIN data.offers o
+      ON o.item_id = i.id AND o.status IN ($2,$3)
+   WHERE o.id IS NULL"	37	146538.47	1596873
+"SELECT id AS item_id, sn AS item_sn, title AS item_title
+FROM core.items
+ORDER BY random()
+LIMIT $1"	28	134811.10	3107953
+"SELECT id AS user_id FROM core.users ORDER BY random() LIMIT $1"	181	103566.70	329680
+"SELECT i.id, i.creator_id
+      FROM core.items i
+      LEFT JOIN data.offers o
+        ON o.item_id = i.id AND o.status IN ($1,$2)
+     WHERE o.id IS NULL
+     OFFSET $3 LIMIT $4"	31	101664.93	4410597
+"SELECT LEAST(count(*), $1) AS items_count FROM core.items"	160	91512.58	1904435
+"SELECT data.cancel_item_offer($1, $2)"	22	84410.29	3043640
+"SELECT LEAST(count(*), $1) AS offers_count FROM data.offers"	160	79418.11	838502
+"SELECT b.id, b.value, b.status, b.offer_id, b.created_at
+FROM data.bids b
+WHERE b.bidder_id = $1
+ORDER BY b.created_at DESC
+LIMIT $2"	46	73986.32	2454697
+"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_creator_id,
+        $18,
+        v_offer_hash
+    )"	43	67030.50	3639666
+"SELECT data.register_item_offer(
+      $1,
+      $2,
+      ($3 / $4)::numeric::money,
+      format($5, $6)
+    )"	31	57426.18	3480470
+
+
+>>> chatty funcs
+"query"	"calls"	"mean_ms"	"percentage_of_workload"
+"/*pga4dash*/
+SELECT $1 AS chart_name, pg_catalog.row_to_json(t) AS chart_data
+FROM (SELECT
+   (SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $2)) AS ""Total"",
+   (SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE state = $3 AND datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $4))  AS ""Active"",
+   (SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE state = $5 AND datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $6))  AS ""Idle""
+) t
+UNION ALL
+SELECT $7 AS chart_name, pg_catalog.row_to_json(t) AS chart_data
+FROM (SELECT
+   (SELECT sum(xact_commit) + sum(xact_rollback) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $8)) AS ""Transactions"",
+   (SELECT sum(xact_commit) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $9)) AS ""Commits"",
+   (SELECT sum(xact_rollback) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $10)) AS ""Rollbacks""
+) t
+UNION ALL
+SELECT $11 AS chart_name, pg_catalog.row_to_json(t) AS chart_data
+FROM (SELECT
+   (SELECT sum(tup_inserted) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $12)) AS ""Inserts"",
+   (SELECT sum(tup_updated) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $13)) AS ""Updates"",
+   (SELECT sum(tup_deleted) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $14)) AS ""Deletes""
+) t
+UNION ALL
+SELECT $15 AS chart_name, pg_catalog.row_to_json(t) AS chart_data
+FROM (SELECT
+   (SELECT sum(tup_fetched) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $16)) AS ""Fetched"",
+   (SELECT sum(tup_returned) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $17)) AS ""Returned""
+) t
+UNION ALL
+SELECT $18 AS chart_name, pg_catalog.row_to_json(t) AS chart_data
+FROM (SELECT
+   (SELECT sum(blks_read) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $19)) AS ""Reads"",
+   (SELECT sum(blks_hit) FROM pg_catalog.pg_stat_database WHERE datname = (SELECT datname FROM pg_catalog.pg_database WHERE oid = $20)) AS ""Hits""
+) t"	1893	0.33	0.03
+"SELECT $2 FROM ONLY ""core"".""users"" x WHERE ""id"" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x"	1246	0.30	0.02
+"SELECT prev_id, hash, event_hash                                                   FROM audit.item_ledger
+        WHERE id = v_curr_id"	671	0.19	0.01
+"BEGIN"	504	0.00	0.00
+"SELECT $2 FROM ONLY ""audit"".""item_ledger"" x WHERE ""id"" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x"	442	0.02	0.00
+"COMMIT"	420	0.00	0.00
+"SELECT hash                  FROM audit.item_ledger WHERE id = v_prev_id"	364	0.01	0.00
+"INSERT INTO data.user_details(user_id, name, surname, email)
+    VALUES (p_user_id, p_name, p_surname, p_email)
+    ON CONFLICT (user_id) DO NOTHING"	355	0.49	0.01
+"INSERT INTO core.users (login, password, status, data_hash)
+    VALUES (p_login, p_password, $9, v_data_hash)
+    RETURNING id"	355	0.22	0.00
+
+
+>>> forced disk read
+"query"	"calls"	"disk_reads"	"cache_hits"	"cache_hit_ratio"
+"SELECT $3 FROM item_ledger WHERE item_id = p_item_id FOR UPDATE"	171	13469485	979418	6.78
+"SELECT core.change_item_details($1, $2, $3)"	106	8451436	515670	5.75
+"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_user_id,
+        $13,
+        v_item_hash
+    )"	106	8451419	513141	5.72
+"SELECT LEAST(count(*), $1) AS bids_count FROM data.bids"	160	8398284	129876	1.52
+"SELECT i.id, i.creator_id
+      FROM core.items i
+      LEFT JOIN data.offers o
+        ON o.item_id = i.id AND o.status IN ($1,$2)
+     WHERE o.id IS NULL
+     OFFSET $3 LIMIT $4"	31	4286323	124274	2.82
+"SELECT data.register_item_offer(
+      $1,
+      $2,
+      ($3 / $4)::numeric::money,
+      format($5, $6)
+    )"	31	3359747	120723	3.47
+"SELECT audit.append_item_event(
+        v_item.ledger_head,
+        v_item.id,
+        p_creator_id,
+        $18,
+        v_offer_hash
+    )"	43	3301932	337734	9.28
+"SELECT data.cancel_item_offer($1, $2)"	22	2781290	262350	8.62
+"SELECT id AS item_id, sn AS item_sn, title AS item_title
+FROM core.items
+ORDER BY random()
+LIMIT $1"	28	2425491	682462	21.96
