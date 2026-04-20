@@ -2,6 +2,10 @@
 - [x] erd
 - [x] seed
 - [x] test web API
+- [ ] tasks 14/04
+  - [x] ! item_ledger unlink bids posting/cancelling (PLACE_BID, CANCEL_BID)
+  - [ ] PostgreS monitor stats/analythics (precise queries, NOT entire db)
+  - [ ] benchmarks (Apache B, JUnit, Seage) concurrent user count?
 
 
 ## users

@@ -261,8 +261,6 @@ AS $$
 DECLARE
     v_offer record;
     v_bid_id bigint;
-    v_bid_hash bytea;
-    v_stamp timestamptz;
 BEGIN
     SELECT o.status, o.item_id, i.creator_id, i.ledger_head
       INTO v_offer
@@ -276,23 +274,7 @@ BEGIN
 
     INSERT INTO data.bids (offer_id, bidder_id, value, status)
     VALUES (p_offer_id, p_bidder_id, p_value, 'PENDING')
-    RETURNING id, created_at INTO v_bid_id, v_stamp;
-
-    v_bid_hash := data._bid_hash(
-        v_bid_id,
-        p_offer_id,
-        v_offer.item_id,
-        p_bidder_id,
-        p_value,
-        v_stamp
-    );
-    PERFORM audit.append_item_event(
-        v_offer.ledger_head,
-        v_offer.item_id,
-        p_bidder_id,
-        'PLACE_BID',
-        v_bid_hash
-    );
+    RETURNING id INTO v_bid_id;
 
     RETURN v_bid_id;
 END;
@@ -309,8 +291,6 @@ SET search_path = data, core, audit, pg_temp
 AS $$
 DECLARE
     v_bid record;
-    v_bid_hash bytea;
-    v_stamp timestamptz;
 BEGIN
     SELECT b.id, b.status, b.offer_id, b.bidder_id, b.value, b.created_at, o.status as offer_status, o.item_id, i.creator_id, i.ledger_head
       INTO v_bid
@@ -338,22 +318,6 @@ BEGIN
     UPDATE data.bids
     SET status = 'CANCELLED'
     WHERE id = p_bid_id;
-
-    v_bid_hash := data._bid_hash(
-        p_bid_id,
-        v_bid.offer_id,
-        v_bid.item_id,
-        p_bidder_id,
-        v_bid.value,
-        v_bid.created_at
-    );
-    PERFORM audit.append_item_event(
-        v_bid.ledger_head,
-        v_bid.item_id,
-        p_bidder_id,
-        'CANCEL_BID',
-        v_bid_hash
-    );
 END;
 $$;
 

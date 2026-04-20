@@ -11,8 +11,6 @@ CREATE TYPE e_item_event_type AS ENUM (
 
   'REGISTER_OFFER',
   'CANCEL_OFFER',
-  'PLACE_BID',
-  'CANCEL_BID',
   'RESERVE_OFFER',
   'WIN_OFFER'
 );
