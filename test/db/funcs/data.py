@@ -19,6 +19,7 @@ async def register_item_offer(
                 SELECT id, creator_id, ledger_head
                 FROM core.items
                 WHERE id = :item_id
+                FOR UPDATE
                 """
                 ),
                 {"item_id": item_id},

@@ -101,7 +101,7 @@ async def _bid_flow(
                 bidder_id = await _ensure_bidder(
                     session, creator_id, ctx.client_id, iteration
                 )
-                value = Decimal(100) + Decimal(iteration) / Decimal(100)
+                value = Decimal(1000) + Decimal(0.01) + Decimal(iteration) / Decimal(100)
                 bid_id = await bids_api.place_bid(session, bidder_id, offer_id, value)
             await metrics.log(
                 "scenario.bids.place",

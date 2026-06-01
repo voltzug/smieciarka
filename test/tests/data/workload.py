@@ -39,44 +39,36 @@ async def test(
             error = ""
             try:
                 async with session.begin():
-                    no_offer_items_count = await session.scalar(
-                        text(
-                            """
-                            SELECT LEAST(count(*), :items_n)
-                            FROM core.items i
-                            LEFT JOIN data.offers o
-                              ON o.item_id = i.id AND o.status IN ('ACTIVE','RESERVED')
-                            WHERE o.id IS NULL
-                            """
-                        ),
-                        {"items_n": items_n},
-                    )
-                    if not no_offer_items_count or int(no_offer_items_count) == 0:
-                        raise RuntimeError("no_items_without_offer")
-                    item_offset = rng.randint(0, int(no_offer_items_count) - 1)
-                    item = (
+                    candidate_rows = (
                         (
                             await session.execute(
                                 text(
                                     """
-                                SELECT i.id, i.creator_id
-                                FROM core.items i
-                                LEFT JOIN data.offers o
-                                  ON o.item_id = i.id AND o.status IN ('ACTIVE','RESERVED')
-                                WHERE o.id IS NULL
-                                OFFSET :offset LIMIT 1
-                                """
+                                            SELECT i.id, i.creator_id
+                                            FROM core.items i
+                                            LEFT JOIN data.offers o
+                                            ON o.item_id = i.id AND o.status IN ('ACTIVE','RESERVED')
+                                            WHERE o.id IS NULL
+                                            LIMIT :limit
+                                            """
                                 ),
-                                {"offset": item_offset},
+                                {"limit": items_n % 29},
                             )
                         )
                         .mappings()
-                        .first()
+                        .all()
                     )
-                    if item is None:
+
+                    if not candidate_rows:
                         raise RuntimeError("no_items_without_offer")
+
+                    # 2. Pick a random item candidate completely in-memory inside Python
+                    item = rng.choice(candidate_rows)
+
                     price_cents = rng.randint(100, 100000)
                     price = Decimal(price_cents) / Decimal(100)
+
+                    # 3. Call your API function directly using the preselected IDs
                     await offers_api.register_offer(
                         session,
                         int(item["creator_id"]),
