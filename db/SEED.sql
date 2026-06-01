@@ -10,10 +10,10 @@ DO $$
 DECLARE
     -- ADJUSTABLE CONSTANTS
     v_offset           int     := 0;
-    v_seller_count      int     := 211211;
-    v_buyer_count       int     := 433433;
-    v_items_per_seller  int     := 9;
-    v_bids_per_offer    int     := 3;
+    v_seller_count      int     := 11211;
+    v_buyer_count       int     := 33433;
+    v_items_per_seller  int     := 6;
+    v_bids_per_offer    int     := 4;
     v_base_price        numeric := 100;
     v_price_step        numeric := 9.69;
     v_conversations_per_offer int := 2;
