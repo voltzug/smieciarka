@@ -3,6 +3,11 @@ version: "3.8"
 services:
   db:
     image: docker.io/library/postgres:16
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '512m'
     networks:
       - db_net
     environment:
@@ -10,7 +15,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
-    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all -c max_connections=999
 
   manager:
     image: docker.io/dpage/pgadmin4:latest
@@ -23,23 +28,6 @@ services:
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
-
-  test:
-    image: docker.io/python:3.12.3-slim
-    networks:
-      - db_net
-    depends_on:
-      - db
-    environment:
-      - PGHOST=db
-      - PGPORT=5432
-      - PGDATABASE=smieczarka
-      - PGUSER=${TEST_USER}
-      - PGPASSWORD=${TEST_PASSWORD}
-    volumes:
-      - ../test:/app/test:ro
-    working_dir: /app
-    command: sh /app/test/setup.sh
 
 volumes:
   db_data:

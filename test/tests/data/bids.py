@@ -124,7 +124,7 @@ async def test(
                         raise RuntimeError("no_other_users")
                     bid_bump_cents = rng.randint(0, 5000)
                     offer_price = Decimal(str(offer["offer_price_num"]))
-                    value = offer_price + (Decimal(bid_bump_cents) / Decimal(100))
+                    value = offer_price + Decimal(0.01) + (Decimal(bid_bump_cents) / Decimal(100))
                     await place_bid(session, int(bidder_id), int(offer["id"]), value)
             except Exception as exc:  # noqa: BLE001
                 ok = 0

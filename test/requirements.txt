@@ -1,2 +1,4 @@
 asyncpg==0.31.0
 SQLAlchemy==2.0.50
+matplotlib==3.10.9
+pandas==3.0.3
