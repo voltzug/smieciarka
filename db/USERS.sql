@@ -98,12 +98,13 @@ $$;
 GRANT app TO app_test;
 
 GRANT UPDATE,DELETE ON ALL TABLES IN SCHEMA data TO app_test;
+GRANT SELECT,INSERT ON ALL TABLES IN SCHEMA core, data TO app_test;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core, data, audit TO app_test;
 
 
 -- prevent direct DML on protected tables
-REVOKE INSERT, UPDATE, DELETE ON TABLE core.users, core.items FROM PUBLIC, moder, app, app_test;
-REVOKE INSERT, UPDATE, DELETE ON TABLE data.offers, data.bids FROM PUBLIC, moder, app, app_test;
+REVOKE INSERT, UPDATE, DELETE ON TABLE core.users, core.items FROM PUBLIC, moder, app;
+REVOKE INSERT, UPDATE, DELETE ON TABLE data.offers, data.bids FROM PUBLIC, moder, app;
 REVOKE INSERT, UPDATE, DELETE ON TABLE audit.item_ledger FROM PUBLIC, moder, app, app_test;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE elephant IN SCHEMA core, data, audit

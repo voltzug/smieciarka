@@ -12,14 +12,7 @@ DROP FUNCTION IF EXISTS _init_item_details(bigint, text);
 DROP FUNCTION IF EXISTS change_item_details(bigint, text);
 
 DROP FUNCTION IF EXISTS _offer_hash(bigint, bigint, bigint, money, text, timestamptz);
-DROP FUNCTION IF EXISTS register_item_offer(bigint, bigint, money, text);
-DROP FUNCTION IF EXISTS cancel_item_offer(bigint, bigint);
-
 DROP FUNCTION IF EXISTS _bid_hash(bigint, bigint, bigint, bigint, money, timestamptz);
-DROP FUNCTION IF EXISTS place_item_bid(bigint, bigint, money);
-DROP FUNCTION IF EXISTS cancel_item_bid(bigint, bigint);
-
-DROP FUNCTION IF EXISTS comment_item_offer(bigint, bigint, varchar, text);
 
 DROP FUNCTION IF EXISTS mc_drop_offers(timestamptz);
 
