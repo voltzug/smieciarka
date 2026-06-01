@@ -25,9 +25,7 @@ services:
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
 
   test:
-    image: docker.io/node:20-alpine
-    ports:
-      - "127.0.0.1:5000:80"
+    image: docker.io/python:3.12.3-slim
     networks:
       - db_net
     depends_on:

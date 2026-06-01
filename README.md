@@ -99,7 +99,7 @@ The database is expected to enforce:
 - [ERD specification and schema implementation details](docs/README.md)
 - [SQL source](db/) folders
 - [CI Containers](ci/)
-- [Simple web API](test/) for testing purposes
+- [Simple test suite](test/) for testing purposes
 
 
 ## License
