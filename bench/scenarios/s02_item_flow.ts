@@ -1,6 +1,6 @@
-import { db } from '../logic/db';
-import { createItem, changeItemDetails } from '../logic/item';
-import { registerItemOffer } from '../logic/offer';
+import { db } from '../logic/db.ts';
+import { createItem, changeItemDetails } from '../logic/item.ts';
+import { registerItemOffer } from '../logic/offer.ts';
 
 const SELLER_COUNT = 100_000;
 

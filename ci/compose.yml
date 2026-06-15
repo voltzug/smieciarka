@@ -3,6 +3,7 @@ version: "3.8"
 services:
   db:
     image: docker.io/library/postgres:16
+    hostname: db
     deploy:
       resources:
         limits:
@@ -35,23 +36,6 @@ services:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
 
-  k6:
-    build:
-      context: .
-      dockerfile: Dockerfile.k6
-    profiles:
-      - bench
-    networks:
-      - db_net
-    depends_on:
-      - db
-    environment:
-      - PGCONN=postgres://${BENCH_USER}:${BENCH_PASSWORD}@db:5432/smieczarka
-      - K6_SCENARIO=${K6_SCENARIO:-all}
-    volumes:
-      - ../bench:/bench
-    command: run --out json=/bench/results.json /bench/scenarios/${K6_SCENARIO:-all}.ts
-
 volumes:
   db_data:
     driver: local
@@ -59,3 +43,4 @@ volumes:
 networks:
   db_net:
     driver: bridge
+    name: smieciarka_net

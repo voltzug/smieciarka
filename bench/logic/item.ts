@@ -1,4 +1,4 @@
-import { Db, withTx } from './db';
+import { Db, withTx } from './db.ts';
 
 export function createItem(db: Db, creatorId: number, sn: string, title: string): number {
   return withTx(db, () => {

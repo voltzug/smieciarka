@@ -1,4 +1,4 @@
-import { db } from '../logic/db';
+import { db } from '../logic/db.ts';
 
 const OFFER_COUNT = 400_000;
 

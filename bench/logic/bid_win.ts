@@ -1,4 +1,4 @@
-import { Db, withTx } from './db';
+import { Db, withTx } from './db.ts';
 
 // No SQL equivalent — implements WIN_OFFER audit event (seller accepts a bid)
 export function winItemBid(db: Db, sellerId: number, bidId: number): void {

@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  k6:
+    build:
+      context: .
+      dockerfile: Dockerfile.k6
+    networks:
+      - db_net
+    environment:
+      - PGCONN=postgres://${BENCH_USER}:${BENCH_PASSWORD}@db:5432/smieczarka?sslmode=disable
+      - K6_SCENARIO=${K6_SCENARIO:-all}
+    volumes:
+      - ../bench:/bench
+    command: run --out json=/bench/results.json /bench/scenarios/${K6_SCENARIO:-all}.ts
+
+networks:
+  db_net:
+    external: true
+    name: smieciarka_net

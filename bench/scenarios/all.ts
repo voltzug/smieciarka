@@ -1,7 +1,7 @@
-import { default as userFlow }   from './s01_user_flow';
-import { default as itemFlow }   from './s02_item_flow';
-import { default as bidFlow }    from './s03_bid_flow';
-import { default as selectFlow } from './s04_select_flow';
+import { default as userFlow }   from './s01_user_flow.ts';
+import { default as itemFlow }   from './s02_item_flow.ts';
+import { default as bidFlow }    from './s03_bid_flow.ts';
+import { default as selectFlow } from './s04_select_flow.ts';
 
 export { userFlow, itemFlow, bidFlow, selectFlow };
 

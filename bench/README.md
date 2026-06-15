@@ -36,13 +36,31 @@ cp .env.example .env
 # fill in POSTGRES_USER, POSTGRES_PASSWORD, BENCH_PASSWORD
 ```
 
-### 2. Start DB (pre-baked volume)
+### 2. Start DB & seed
 
 ```bash
 podman-compose up -d db
 ```
 
-Connect to pgAdmin at `http://localhost:5050` and verify data is present (~100k users, ~400k items).
+Connect to pgAdmin at `http://localhost:5050` and verify data is present by running these count queries:
+
+```sql
+SELECT 'core.users'         AS table, COUNT(*) FROM core.users
+UNION ALL
+SELECT 'core.items',                  COUNT(*) FROM core.items
+UNION ALL
+SELECT 'data.user_details',           COUNT(*) FROM data.user_details
+UNION ALL
+SELECT 'data.offers',                 COUNT(*) FROM data.offers
+UNION ALL
+SELECT 'data.bids',                   COUNT(*) FROM data.bids
+UNION ALL
+SELECT 'data.conversations',          COUNT(*) FROM data.conversations
+UNION ALL
+SELECT 'audit.item_ledger',           COUNT(*) FROM audit.item_ledger;
+```
+
+Expected baseline: ~100k users, ~400k items, matching rows in user_details, offers, bids, conversations, and one ledger entry per item event.
 
 Apply the updated `db/USERS.sql` via pgAdmin query tool to ensure `app_test` has the correct connection limit and DML grants.
 
@@ -54,19 +72,23 @@ Run in pgAdmin (or psql):
 SELECT pg_stat_statements_reset();
 ```
 
-### 4. Run benchmark
+### 4. Build k6 image (first time only)
 
 ```bash
-# all 4 scenarios in parallel (default)
-podman-compose --profile bench run --rm k6
+cd ci
+podman-compose -f compose.bench.yml build
+```
 
-# single scenario
-K6_SCENARIO=s03_bid_flow podman-compose --profile bench run --rm k6
+### 5. Run benchmark
+
+```bash
+cd ci
+podman-compose -f compose.bench.yml run --rm k6
 ```
 
 Results are written to `bench/results.json`.
 
-### 5. Plot results
+### 6. Plot results
 
 ```bash
 python3 bench/plot.py bench/results.json

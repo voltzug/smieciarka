@@ -1,5 +1,5 @@
-import { db } from '../logic/db';
-import { changeUserDetails } from '../logic/user';
+import { db } from '../logic/db.ts';
+import { changeUserDetails } from '../logic/user.ts';
 
 const USER_COUNT = 100_000;
 const NAMES    = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve', 'Frank', 'Grace', 'Hank'];

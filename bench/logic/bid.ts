@@ -1,4 +1,4 @@
-import { Db, withTx } from './db';
+import { Db, withTx } from './db.ts';
 
 export function placeItemBid(db: Db, bidderId: number, offerId: number, value: string): number {
   return withTx(db, () => {

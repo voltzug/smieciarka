@@ -1,7 +1,7 @@
-import { db } from '../logic/db';
-import { placeItemBid, cancelItemBid, commentItemOffer } from '../logic/bid';
-import { cancelItemOffer } from '../logic/offer';
-import { winItemBid } from '../logic/bid_win';
+import { db } from '../logic/db.ts';
+import { placeItemBid, cancelItemBid, commentItemOffer } from '../logic/bid.ts';
+import { cancelItemOffer } from '../logic/offer.ts';
+import { winItemBid } from '../logic/bid_win.ts';
 
 const BUYER_COUNT  = 100_000;
 const SELLER_COUNT = 100_000;

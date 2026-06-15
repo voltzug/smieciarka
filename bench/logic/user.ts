@@ -1,4 +1,4 @@
-import { Db, withTx } from './db';
+import { Db, withTx } from './db.ts';
 
 export function createUser(
   db: Db,
