@@ -11,7 +11,7 @@ export function winItemBid(db: Db, sellerId: number, bidId: number): void {
        JOIN data.offers o ON b.offer_id = o.id
        JOIN core.items i ON o.item_id = i.id
        WHERE b.id = $1 AND i.creator_id = $2
-       FOR UPDATE OF o`,
+       FOR UPDATE OF o, i`,
       bidId, sellerId
     );
     if (!rows.length) throw new Error(`Bid ${bidId} not found or seller ${sellerId} is not item owner`);

@@ -10,7 +10,6 @@ import argparse
 import json
 import os
 import sys
-from collections import defaultdict
 from datetime import datetime, timezone
 
 try:
@@ -39,11 +38,13 @@ def save_meta(results_path: str, rows: list[dict]) -> None:
     meta_path = results_path.replace(".json", ".meta.json")
     if os.path.exists(meta_path):
         return
+    
     scenarios = sorted({
-        r["data"]["tags"].get("scenario", "")
+        r["data"]["tags"].get("scenario") or "default"
         for r in rows
-        if r.get("type") == "Point" and r.get("data", {}).get("tags")
-    } - {""})
+        if r.get("type") == "Point" and r.get("data", {}).get("tags") is not None
+    })
+    
     meta = {
         "run_at": datetime.now(timezone.utc).isoformat(),
         "source_file": os.path.basename(results_path),
@@ -54,28 +55,28 @@ def save_meta(results_path: str, rows: list[dict]) -> None:
     print(f"Saved {meta_path}")
 
 
-def to_ts(iso: str) -> datetime:
-    return datetime.fromisoformat(iso.replace("Z", "+00:00"))
-
-
 def build_df(rows: list[dict], metric: str, scenario_filter: str | None) -> pd.DataFrame:
     points = []
     for r in rows:
-        if r.get("type") != "Point":
+        if r.get("type") != "Point" or r.get("metric") != metric:
             continue
-        if r.get("metric") != metric:
-            continue
-        tags = r.get("data", {}).get("tags", {})
-        sc = tags.get("scenario", "")
+            
+        tags = r.get("data", {}).get("tags") or {}
+        sc = tags.get("scenario") or "default"
+        
         if scenario_filter and scenario_filter != "all" and sc != scenario_filter:
             continue
+            
         points.append({
-            "ts": to_ts(r["data"]["time"]),
+            # FIXED: pd.to_datetime handles nanosecond 'Z' timestamps perfectly
+            "ts": pd.to_datetime(r["data"]["time"]),
             "value": r["data"]["value"],
-            "scenario": sc or "default",
+            "scenario": sc,
         })
+        
     if not points:
         return pd.DataFrame(columns=["ts", "value", "scenario"])
+        
     df = pd.DataFrame(points)
     df.sort_values("ts", inplace=True)
     return df
@@ -105,13 +106,15 @@ def main() -> None:
     fig, axes = plt.subplots(4, 1, figsize=(14, 16), sharex=True)
     fig.suptitle(f"k6 Benchmark — {os.path.basename(args.results)}", fontsize=13)
 
-    # collect scenarios present
+    # Normalize scenarios collection
     scenarios = sorted({
-        r["data"]["tags"].get("scenario", "default")
+        r["data"]["tags"].get("scenario") or "default"
         for r in rows
-        if r.get("type") == "Point" and r.get("data", {}).get("tags")
-        and (sc_filter is None or r["data"]["tags"].get("scenario") == sc_filter)
+        if r.get("type") == "Point" and r.get("data", {}).get("tags") is not None
     })
+    if sc_filter and sc_filter != "all":
+        scenarios = [sc_filter] if sc_filter in scenarios else []
+
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     sc_color = {s: colors[i % len(colors)] for i, s in enumerate(scenarios)}
 
@@ -119,68 +122,83 @@ def main() -> None:
     ax = axes[0]
     ax.set_title("Virtual Users")
     ax.set_ylabel("VUs")
+    has_plots = False
     for sc in scenarios:
-        df = build_df(rows, "vus", sc if sc_filter is None else sc_filter)
-        df = df[df["scenario"] == sc] if sc_filter is None else df
+        df = build_df(rows, "vus", sc)
         if df.empty:
             continue
         df_r = df.set_index("ts")["value"].resample("5s").last().dropna()
         ax.plot(df_r.index, df_r.values, label=sc, color=sc_color[sc])
-    ax.legend(fontsize=8)
+        has_plots = True
+    if has_plots:
+        ax.legend(fontsize=8)
+    else:
+        ax.text(0.5, 0.5, "No 'vus' metrics present in log snapshot", ha="center", va="center", transform=ax.transAxes, color="gray")
 
     # Panel 2: iteration rate
     ax = axes[1]
     ax.set_title("Iteration Rate")
     ax.set_ylabel("iter/s")
+    has_plots = False
     for sc in scenarios:
-        df = build_df(rows, "iterations", sc if sc_filter is None else sc_filter)
-        df = df[df["scenario"] == sc] if sc_filter is None else df
+        df = build_df(rows, "iterations", sc)
         if df.empty:
             continue
         df_r = df.set_index("ts")["value"].resample("5s").sum().dropna()
         rate  = df_r / 5.0
         ax.plot(rate.index, rate.values, label=sc, color=sc_color[sc])
-    ax.legend(fontsize=8)
+        has_plots = True
+    if has_plots:
+        ax.legend(fontsize=8)
+    else:
+        ax.text(0.5, 0.5, "No 'iterations' metrics present in log snapshot", ha="center", va="center", transform=ax.transAxes, color="gray")
 
     # Panel 3: latency percentiles (iteration_duration in ms)
     ax = axes[2]
     ax.set_title("Iteration Duration Percentiles")
     ax.set_ylabel("ms")
+    has_plots = False
     for sc in scenarios:
-        df = build_df(rows, "iteration_duration", sc if sc_filter is None else sc_filter)
-        df = df[df["scenario"] == sc] if sc_filter is None else df
+        df = build_df(rows, "iteration_duration", sc)
         if df.empty:
             continue
         for q, ls in [(0.50, "-"), (0.95, "--"), (0.99, ":")]:
             s = resample_percentile(df, "5s", q).dropna()
-            ax.plot(s.index, s.values, ls, color=sc_color[sc],
-                    label=f"{sc} p{int(q*100)}" if q == 0.95 else "_nolegend_")
-    ax.legend(fontsize=8)
+            if not s.empty:
+                ax.plot(s.index, s.values, ls, color=sc_color[sc],
+                        label=f"{sc} p{int(q*100)}" if q == 0.95 else "_nolegend_")
+                has_plots = True
+    if has_plots:
+        ax.legend(fontsize=8)
+    else:
+        ax.text(0.5, 0.5, "No 'iteration_duration' metrics present", ha="center", va="center", transform=ax.transAxes, color="gray")
 
     # Panel 4: error rate
     ax = axes[3]
     ax.set_title("Error Rate")
     ax.set_ylabel("%")
+    has_plots = False
     for sc in scenarios:
-        df_ok  = build_df(rows, "iterations",       sc if sc_filter is None else sc_filter)
-        df_err = build_df(rows, "iteration_duration", sc if sc_filter is None else sc_filter)
-        df_ok  = df_ok[df_ok["scenario"]  == sc] if sc_filter is None else df_ok
-        df_err = df_err[df_err["scenario"] == sc] if sc_filter is None else df_err
+        df_ok = build_df(rows, "iterations", sc)
         if df_ok.empty:
             continue
-        ok_r  = df_ok.set_index("ts")["value"].resample("5s").sum().dropna()
-        # k6 records failed iterations via 'errors' metric or checks; use checks if available
-        df_fail = build_df(rows, "checks", sc if sc_filter is None else sc_filter)
-        df_fail = df_fail[df_fail["scenario"] == sc] if sc_filter is None else df_fail
+        ok_r = df_ok.set_index("ts")["value"].resample("5s").sum().dropna()
+        
+        df_fail = build_df(rows, "checks", sc)
         if not df_fail.empty:
-            # checks value=0 means failure
             df_fail["failed"] = (df_fail["value"] == 0).astype(float)
             fail_r = df_fail.set_index("ts")["failed"].resample("5s").sum().reindex(ok_r.index, fill_value=0)
-            total  = ok_r.replace(0, 1)
-            rate   = (fail_r / total * 100).clip(0, 100)
-            ax.plot(rate.index, rate.values, label=sc, color=sc_color[sc])
-    ax.legend(fontsize=8)
-    ax.set_ylim(bottom=0)
+        else:
+            # FIXED: If no explicit check errors occurred, output a flat baseline of 0% errors
+            fail_r = pd.Series(0.0, index=ok_r.index)
+            
+        total = ok_r.replace(0, 1)
+        rate  = (fail_r / total * 100).clip(0, 100)
+        ax.plot(rate.index, rate.values, label=f"{sc} (errors)", color=sc_color[sc])
+        has_plots = True
+    if has_plots:
+        ax.legend(fontsize=8)
+    ax.set_ylim(bottom=-5, top=105)
 
     for ax in axes:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))

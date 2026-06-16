@@ -8,7 +8,7 @@ services:
       resources:
         limits:
           cpus: "2"
-          memory: 4G
+          memory: 1G
     networks:
       - db_net
     environment:
@@ -21,7 +21,7 @@ services:
       postgres
         -c shared_preload_libraries=pg_stat_statements
         -c pg_stat_statements.track=all
-        -c max_connections=300
+        -c max_connections=900
         -c work_mem=8MB
 
   manager:

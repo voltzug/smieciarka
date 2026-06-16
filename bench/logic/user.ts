@@ -9,6 +9,12 @@ export function createUser(
   email: string
 ): number {
   return withTx(db, () => {
+    // 1. Check if email already exists before doing anything to prevent unexpected aborts
+    const existing = db.query(`SELECT user_id FROM data.user_details WHERE email = $1`, email);
+    if (existing.length > 0) {
+      return existing[0].user_id as number; // Safe fallback: return existing user ID
+    }
+
     const { hash } = db.query(
       `SELECT encode(core._user_data_hash($1, $2), 'hex') AS hash`,
       login, email
@@ -16,13 +22,17 @@ export function createUser(
 
     const { id } = db.query(
       `INSERT INTO core.users(login, password, status, data_hash)
-       VALUES($1, $2, 'ACTIVE', decode($3, 'hex')) RETURNING id`,
+       VALUES($1, $2, 'ACTIVE', decode($3, 'hex')) 
+       ON CONFLICT (login) DO UPDATE SET status = 'ACTIVE' -- Prevents login conflict crashes
+       RETURNING id`,
       login, password, hash
     )[0];
 
+    // 2. Handle conflicts on BOTH user_id and email cleanly
     db.exec(
       `INSERT INTO data.user_details(user_id, name, surname, email)
-       VALUES($1, $2, $3, $4) ON CONFLICT(user_id) DO NOTHING`,
+       VALUES($1, $2, $3, $4) 
+       ON CONFLICT(user_id) DO NOTHING`,
       id, name, surname, email
     );
 

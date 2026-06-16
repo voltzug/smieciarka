@@ -9,7 +9,7 @@ export function registerItemOffer(
 ): number {
   return withTx(db, () => {
     const items = db.query(
-      `SELECT creator_id, ledger_head FROM core.items WHERE id = $1`,
+      `SELECT creator_id, ledger_head FROM core.items WHERE id = $1 FOR UPDATE`,
       itemId
     );
     if (!items.length) throw new Error(`Item ${itemId} does not exist`);

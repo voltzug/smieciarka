@@ -10,8 +10,8 @@ export interface Db {
 }
 
 export const db: Db = sql.open(driver, __ENV.PGCONN, {
-  max_open_conns: 1,
-  max_idle_conns: 1,
+  max_open_conns: 60,
+  max_idle_conns: 9,
 });
 
 export function withTx<T>(db: Db, fn: () => T): T {

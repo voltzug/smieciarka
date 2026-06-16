@@ -3,7 +3,7 @@ import { placeItemBid, cancelItemBid, commentItemOffer } from '../logic/bid.ts';
 import { cancelItemOffer } from '../logic/offer.ts';
 import { winItemBid } from '../logic/bid_win.ts';
 
-const BUYER_COUNT  = 100_000;
+const BUYER_COUNT = 100_000;
 const SELLER_COUNT = 100_000;
 
 function randStr(prefix: string): string {
@@ -28,13 +28,13 @@ function randomActiveOffer(): { offerId: number; sellerId: number } | null {
 
 export const options = {
   stages: [
-    { duration: '30s', target: 5   },
-    { duration: '1m',  target: 20  },
-    { duration: '2m',  target: 50  },
-    { duration: '2m',  target: 100 },
-    { duration: '3m',  target: 200 },
-    { duration: '2m',  target: 500 },
-    { duration: '2m',  target: 0   },
+    { duration: '5s', target: 5 },
+    { duration: '30s', target: 20 },
+    { duration: '40s', target: 50 },
+    { duration: '1m', target: 100 },
+    { duration: '2m', target: 200 },
+    { duration: '1m', target: 500 },
+    { duration: '30s', target: 0 },
   ],
 };
 

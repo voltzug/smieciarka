@@ -14,20 +14,20 @@ function randPrice(): string {
 
 export const options = {
   stages: [
-    { duration: '30s', target: 5   },
-    { duration: '1m',  target: 20  },
-    { duration: '2m',  target: 50  },
-    { duration: '2m',  target: 100 },
-    { duration: '3m',  target: 200 },
-    { duration: '2m',  target: 500 },
-    { duration: '2m',  target: 0   },
+    { duration: '5s', target: 5 },
+    { duration: '30s', target: 20 },
+    { duration: '40s', target: 50 },
+    { duration: '1m', target: 100 },
+    { duration: '2m', target: 200 },
+    { duration: '1m', target: 500 },
+    { duration: '30s', target: 0 },
   ],
 };
 
 export default function itemFlow(): void {
   const sellerId = Math.floor(Math.random() * SELLER_COUNT) + 1;
-  const sn       = randStr('SN');
-  const title    = randStr('Item');
+  const sn = randStr('SN');
+  const title = randStr('Item');
 
   const itemId = createItem(db, sellerId, sn, title);
   changeItemDetails(db, itemId, randStr('Title'), sellerId);

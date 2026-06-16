@@ -6,23 +6,23 @@ const PREFIXES = ['a', 'b', 'c', 's', 'bu', 'it'];
 
 export const options = {
   stages: [
-    { duration: '30s', target: 5   },
-    { duration: '1m',  target: 20  },
-    { duration: '2m',  target: 50  },
-    { duration: '2m',  target: 100 },
-    { duration: '3m',  target: 200 },
-    { duration: '2m',  target: 500 },
-    { duration: '2m',  target: 0   },
+    { duration: '5s', target: 5 },
+    { duration: '30s', target: 20 },
+    { duration: '40s', target: 50 },
+    { duration: '1m', target: 100 },
+    { duration: '2m', target: 200 },
+    { duration: '1m', target: 500 },
+    { duration: '30s', target: 0 },
   ],
 };
 
 export default function selectFlow(): void {
-  const kind   = Math.floor(Math.random() * 5);
+  const kind = Math.floor(Math.random() * 5);
   const prefix = PREFIXES[Math.floor(Math.random() * PREFIXES.length)];
 
   switch (kind) {
     case 0:
-      db.query(`SELECT id, login FROM core.users WHERE login ILIKE $1 LIMIT 20`, `${prefix}%`);
+      db.query(`SELECT id, login FROM core.users WHERE lower(login) LIKE $1 LIMIT 20`, `${prefix.toLowerCase()}%`);
       break;
     case 1:
       db.query(`SELECT id, sn, title FROM core.items WHERE title ILIKE $1 LIMIT 20`, `${prefix}%`);

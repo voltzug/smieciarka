@@ -26,7 +26,7 @@ export function createItem(db: Db, creatorId: number, sn: string, title: string)
 export function changeItemSn(db: Db, itemId: number, newSn: string, userId: number): void {
   withTx(db, () => {
     const items = db.query(
-      `SELECT title, ledger_head FROM core.items WHERE id = $1 AND creator_id = $2`,
+      `SELECT title, ledger_head FROM core.items WHERE id = $1 AND creator_id = $2 FOR UPDATE`,
       itemId, userId
     );
     if (!items.length) throw new Error(`Item ${itemId} not found or not owned by user ${userId}`);
@@ -53,7 +53,7 @@ export function changeItemSn(db: Db, itemId: number, newSn: string, userId: numb
 export function changeItemDetails(db: Db, itemId: number, newTitle: string, userId: number): void {
   withTx(db, () => {
     const items = db.query(
-      `SELECT sn, ledger_head FROM core.items WHERE id = $1 AND creator_id = $2`,
+      `SELECT sn, ledger_head FROM core.items WHERE id = $1 AND creator_id = $2 FOR UPDATE`,
       itemId, userId
     );
     if (!items.length) throw new Error(`Item ${itemId} not found or not owned by user ${userId}`);
