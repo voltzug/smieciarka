@@ -31,7 +31,6 @@ Transaction logic lives in `bench/logic/` (TypeScript, executed directly against
 ### 1. Configure environment
 
 ```bash
-cd ci
 cp .env.example .env
 # fill in POSTGRES_USER, POSTGRES_PASSWORD, BENCH_PASSWORD
 ```
@@ -75,14 +74,12 @@ SELECT pg_stat_statements_reset();
 ### 4. Build k6 image (first time only)
 
 ```bash
-cd ci
 podman-compose -f compose.bench.yml build
 ```
 
 ### 5. Run benchmark
 
 ```bash
-cd ci
 podman-compose -f compose.bench.yml run --rm k6
 ```
 

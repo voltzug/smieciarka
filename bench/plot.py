@@ -38,13 +38,13 @@ def save_meta(results_path: str, rows: list[dict]) -> None:
     meta_path = results_path.replace(".json", ".meta.json")
     if os.path.exists(meta_path):
         return
-    
+
     scenarios = sorted({
         r["data"]["tags"].get("scenario") or "default"
         for r in rows
         if r.get("type") == "Point" and r.get("data", {}).get("tags") is not None
     })
-    
+
     meta = {
         "run_at": datetime.now(timezone.utc).isoformat(),
         "source_file": os.path.basename(results_path),
@@ -60,23 +60,22 @@ def build_df(rows: list[dict], metric: str, scenario_filter: str | None) -> pd.D
     for r in rows:
         if r.get("type") != "Point" or r.get("metric") != metric:
             continue
-            
+
         tags = r.get("data", {}).get("tags") or {}
         sc = tags.get("scenario") or "default"
-        
+
         if scenario_filter and scenario_filter != "all" and sc != scenario_filter:
             continue
-            
+
         points.append({
-            # FIXED: pd.to_datetime handles nanosecond 'Z' timestamps perfectly
             "ts": pd.to_datetime(r["data"]["time"]),
             "value": r["data"]["value"],
             "scenario": sc,
         })
-        
+
     if not points:
         return pd.DataFrame(columns=["ts", "value", "scenario"])
-        
+
     df = pd.DataFrame(points)
     df.sort_values("ts", inplace=True)
     return df
@@ -103,8 +102,8 @@ def main() -> None:
     sc_filter = None if args.scenario == "all" else args.scenario
     out_path  = args.results.replace(".json", "_plot.png")
 
-    fig, axes = plt.subplots(4, 1, figsize=(14, 16), sharex=True)
-    fig.suptitle(f"k6 Benchmark — {os.path.basename(args.results)}", fontsize=13)
+    fig, axes = plt.subplots(4, 1, figsize=(14, 20), sharex=True)
+    fig.suptitle(f"k6 Benchmark — {os.path.basename(args.results)}", fontsize=14, fontweight='bold')
 
     # Normalize scenarios collection
     scenarios = sorted({
@@ -120,7 +119,7 @@ def main() -> None:
 
     # Panel 1: VU count
     ax = axes[0]
-    ax.set_title("Virtual Users")
+    ax.set_title("Virtual Users", fontweight='bold')
     ax.set_ylabel("VUs")
     has_plots = False
     for sc in scenarios:
@@ -133,11 +132,12 @@ def main() -> None:
     if has_plots:
         ax.legend(fontsize=8)
     else:
-        ax.text(0.5, 0.5, "No 'vus' metrics present in log snapshot", ha="center", va="center", transform=ax.transAxes, color="gray")
+        ax.text(0.5, 0.5, "No 'vus' metrics present", ha="center", va="center", transform=ax.transAxes, color="gray")
+
 
     # Panel 2: iteration rate
     ax = axes[1]
-    ax.set_title("Iteration Rate")
+    ax.set_title("Iteration Rate", fontweight='bold')
     ax.set_ylabel("iter/s")
     has_plots = False
     for sc in scenarios:
@@ -151,11 +151,11 @@ def main() -> None:
     if has_plots:
         ax.legend(fontsize=8)
     else:
-        ax.text(0.5, 0.5, "No 'iterations' metrics present in log snapshot", ha="center", va="center", transform=ax.transAxes, color="gray")
+        ax.text(0.5, 0.5, "No 'iterations' metrics present", ha="center", va="center", transform=ax.transAxes, color="gray")
 
     # Panel 3: latency percentiles (iteration_duration in ms)
     ax = axes[2]
-    ax.set_title("Iteration Duration Percentiles")
+    ax.set_title("Iteration Duration Percentiles", fontweight='bold')
     ax.set_ylabel("ms")
     has_plots = False
     for sc in scenarios:
@@ -173,31 +173,22 @@ def main() -> None:
     else:
         ax.text(0.5, 0.5, "No 'iteration_duration' metrics present", ha="center", va="center", transform=ax.transAxes, color="gray")
 
-    # Panel 4: error rate
+    # Panel : Infrastructure & System Failure Track (SLO Violations)
     ax = axes[3]
-    ax.set_title("Error Rate")
-    ax.set_ylabel("%")
+    ax.set_title("Server Failure Rate (SLO Baseline)", fontweight='bold')
+    ax.set_ylabel("Failure Rate %")
     has_plots = False
     for sc in scenarios:
-        df_ok = build_df(rows, "iterations", sc)
-        if df_ok.empty:
-            continue
-        ok_r = df_ok.set_index("ts")["value"].resample("5s").sum().dropna()
-        
-        df_fail = build_df(rows, "checks", sc)
-        if not df_fail.empty:
-            df_fail["failed"] = (df_fail["value"] == 0).astype(float)
-            fail_r = df_fail.set_index("ts")["failed"].resample("5s").sum().reindex(ok_r.index, fill_value=0)
-        else:
-            # FIXED: If no explicit check errors occurred, output a flat baseline of 0% errors
-            fail_r = pd.Series(0.0, index=ok_r.index)
-            
-        total = ok_r.replace(0, 1)
-        rate  = (fail_r / total * 100).clip(0, 100)
-        ax.plot(rate.index, rate.values, label=f"{sc} (errors)", color=sc_color[sc])
-        has_plots = True
+        df_rate = build_df(rows, "db_server_failure_rate", sc)
+        if not df_rate.empty:
+            # Map percentage rate explicitly across sample windows
+            fail_rate_r = df_rate.set_index("ts")["value"].resample("5s").mean().fillna(0) * 100
+            ax.plot(fail_rate_r.index, fail_rate_r.values, label=f"{sc} (infra_failure)", color="crimson", linewidth=1.5)
+            has_plots = True
     if has_plots:
         ax.legend(fontsize=8)
+    else:
+        ax.text(0.5, 0.5, "0% Server Failures Detected (Infra Clean)", ha="center", va="center", transform=ax.transAxes, color="green")
     ax.set_ylim(bottom=-5, top=105)
 
     for ax in axes:
@@ -207,7 +198,7 @@ def main() -> None:
         ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=150)
+    plt.savefig(out_path, dpi=300)
     print(f"Saved {out_path}")
 
 

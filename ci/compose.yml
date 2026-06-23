@@ -8,7 +8,7 @@ services:
       resources:
         limits:
           cpus: "2"
-          memory: 1G
+          memory: 512MB
     networks:
       - db_net
     environment:
@@ -30,8 +30,6 @@ services:
       - "127.0.0.1:5050:80"
     networks:
       - db_net
-    depends_on:
-      - db
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
