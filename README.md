@@ -4,12 +4,16 @@ SN-based second-hand electronics trading platform focused on **traceable item hi
 > [!NOTE]
 > uses _PostgreSQL_ 16 with `pgcrypto` extension
 
-Shields: [![PostgreSQL 16][pg-shield]][pg]  [![BSD 3-Clause License][bsd-shield]][bsd]
+Shields: [![PostgreSQL 16][pg-shield]][pg]  [![BSD 3-Clause License][bsd-shield]][bsd] [![grafana k6][k6-shield]][k6]
 
 [pg]: https://www.postgresql.org/
 [pg-shield]: https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql
 [bsd]: https://opensource.org/licenses/BSD-3-Clause
 [bsd-shield]: https://img.shields.io/badge/License-BSD%203--Clause-blue?logo=bsd
+[k6]: https://k6.io/
+[k6-shield]: https://img.shields.io/badge/k6-blue?logo=k6
+
+![Finished](https://img.shields.io/badge/status-Finished%20%F0%9F%94%9A-3CB371?style=for-the-badge&logo=github)
 
 
 ## Idea
