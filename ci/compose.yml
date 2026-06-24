@@ -3,11 +3,12 @@ version: "3.8"
 services:
   db:
     image: docker.io/library/postgres:16
+    hostname: db
     deploy:
       resources:
         limits:
           cpus: "2"
-          memory: 4G
+          memory: 512MB
     networks:
       - db_net
     environment:
@@ -20,7 +21,7 @@ services:
       postgres
         -c shared_preload_libraries=pg_stat_statements
         -c pg_stat_statements.track=all
-        -c max_connections=300
+        -c max_connections=900
         -c work_mem=8MB
 
   manager:
@@ -29,28 +30,9 @@ services:
       - "127.0.0.1:5050:80"
     networks:
       - db_net
-    depends_on:
-      - db
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
-
-  k6:
-    build:
-      context: .
-      dockerfile: Dockerfile.k6
-    profiles:
-      - bench
-    networks:
-      - db_net
-    depends_on:
-      - db
-    environment:
-      - PGCONN=postgres://${BENCH_USER}:${BENCH_PASSWORD}@db:5432/smieczarka
-      - K6_SCENARIO=${K6_SCENARIO:-all}
-    volumes:
-      - ../bench:/bench
-    command: run --out json=/bench/results.json /bench/scenarios/${K6_SCENARIO:-all}.ts
 
 volumes:
   db_data:
@@ -59,3 +41,4 @@ volumes:
 networks:
   db_net:
     driver: bridge
+    name: smieciarka_net

@@ -90,7 +90,7 @@ $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_test') THEN
-        CREATE ROLE app_test CONNECTION LIMIT 99 LOGIN PASSWORD 'app_test' INHERIT;
+        CREATE ROLE app_test CONNECTION LIMIT 900 LOGIN PASSWORD 'app_test' INHERIT;
     END IF;
 END;
 $$;
@@ -116,3 +116,11 @@ ALTER DEFAULT PRIVILEGES FOR ROLE elephant IN SCHEMA core, data, audit
     REVOKE INSERT, UPDATE, DELETE ON TABLES FROM app;
 ALTER DEFAULT PRIVILEGES FOR ROLE elephant IN SCHEMA core, data, audit
     REVOKE INSERT, UPDATE, DELETE ON TABLES FROM app_test;
+
+-- Direct DML grants for k6 bench logic (bypasses stored-procedure-only restriction)
+GRANT INSERT, UPDATE ON TABLE core.users TO app_test;
+GRANT INSERT, UPDATE ON TABLE core.items TO app_test;
+GRANT INSERT, UPDATE ON TABLE data.offers TO app_test;
+GRANT INSERT, UPDATE ON TABLE data.bids TO app_test;
+GRANT INSERT ON TABLE data.user_details TO app_test;
+GRANT INSERT ON TABLE data.conversations TO app_test;
